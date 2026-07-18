@@ -475,25 +475,12 @@ textarea:focus-visible {
   position: absolute;
   top: 72px;
   left: 0;
-  display: flex;
-  gap: 16px;
-  align-items: center;
   font-family: var(--mono);
   font-size: var(--label-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.revision-coordinate span:first-child {
   color: var(--ink);
-}
-
-.revision-coordinate span + span::before {
-  content: "/";
-  margin-right: 16px;
-  color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .assumption-copy,
@@ -1095,7 +1082,6 @@ textarea:focus-visible {
 }
 
 .revision-history li.is-current button {
-  min-width: calc(36px + var(--local-progress) * 12px);
   border-color: var(--ink);
   background: var(--ink);
   color: var(--paper);
@@ -1299,19 +1285,7 @@ textarea:focus-visible {
 }
 
 .mind::after {
-  content: "";
-  position: fixed;
-  z-index: 9;
-  top: 0;
-  left: 0;
-  display: block;
-  width: 2px;
-  height: 100svh;
-  background: var(--mark);
-  pointer-events: none;
-  transform: scaleY(var(--story-progress));
-  transform-origin: top;
-  will-change: transform;
+  content: none;
 }
 
 @keyframes scroll-nudge {
@@ -1492,10 +1466,6 @@ textarea:focus-visible {
   .revision-coordinate {
     top: 12px;
     left: 0;
-  }
-
-  .revision-coordinate span + span {
-    display: none;
   }
 
   .assumption-copy,

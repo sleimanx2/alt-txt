@@ -408,7 +408,6 @@ export default function Home() {
           <span className="question-shortcut-label">
             <span className="question-shortcut-long">Bring us a hard thing</span>
             <span className="question-shortcut-short">Question</span>
-            <small>Skip to 06 / 06</small>
           </span>
           <span aria-hidden="true">↗</span>
         </button>
@@ -442,14 +441,7 @@ export default function Home() {
       <div ref={flowRef} className="revision-flow scroll-story">
         <div className="revision-stage" id="active-thought">
           <div className="revision-coordinate" aria-hidden="true">
-            <span>REV. {progress}</span>
-            <span>
-              {phase === "truth"
-                ? "assumption corrected"
-                : phase === "correcting"
-                  ? "rewriting in progress"
-                  : "assumption under review"}
-            </span>
+            <span>{progress}</span>
           </div>
 
           <div className="rewrite-stack" key={step}>
@@ -495,12 +487,6 @@ export default function Home() {
               <span className="sr-only" id="interaction-instruction">
                 Activate the marked word, or keep scrolling, to rewrite this assumption.
               </span>
-              <div className="gesture-hint" aria-hidden="true">
-                <span className="gesture-line" />
-                <span className="gesture-hint-full">Tap or drag the marked word</span>
-                <span className="gesture-hint-full">or scroll to rewrite ↓</span>
-                <span className="gesture-hint-short">Tap word or scroll ↓</span>
-              </div>
             </div>
 
             <div
@@ -595,17 +581,8 @@ export default function Home() {
                     </a>
                   </div>
                 </div>
-              ) : step === 0 ? (
-                <div className="scroll-prompt" aria-hidden="true">
-                  <span>Keep scrolling</span>
-                  <i>↓</i>
-                </div>
               ) : null}
             </div>
-          </div>
-
-          <div className="chapter-meter" aria-hidden="true">
-            <span />
           </div>
         </div>
       </div>
@@ -635,11 +612,6 @@ export default function Home() {
           })}
         </ol>
       </nav>
-
-      <div className="quiet-proof" aria-hidden="true">
-        <span>Technology is the easy part.</span>
-        <span>Finding the right problem is the work.</span>
-      </div>
 
       <dialog
         ref={dialogRef}
