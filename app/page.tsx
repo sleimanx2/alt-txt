@@ -8,6 +8,14 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  trackArtifactOpened,
+  trackAssumptionRejected,
+  trackContactIntent,
+  trackJumpToQuestion,
+  trackProjectLinkClicked,
+  trackRevisionReached,
+} from "./lib/analytics";
 
 const revisions = [
   {
@@ -129,7 +137,6 @@ function phaseFromRewrite(rewrite: number): Phase {
 export default function Home() {
   const [step, setStep] = useState(0);
   const [phase, setPhase] = useState<Phase>("assumption");
-  const [scrollDirection, setScrollDirection] = useState<"forward" | "backward">("forward");
   const [dragging, setDragging] = useState(false);
   const [artifact, setArtifact] = useState<ArtifactKey | null>(null);
   const [problem, setProblem] = useState("");
@@ -145,6 +152,8 @@ export default function Home() {
   const phaseRef = useRef<Phase>("assumption");
   const rewriteRef = useRef(0);
   const scrollRaf = useRef(0);
+  const trackedAssumptions = useRef(new Set<number>());
+  const trackedTruths = useRef(new Set<number>());
 
   const revision = revisions[step];
   const progress = `${String(step + 1).padStart(2, "0")} / ${String(revisions.length).padStart(2, "0")}`;
@@ -173,10 +182,25 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (trackedAssumptions.current.has(step)) return;
+    trackedAssumptions.current.add(step);
+    trackRevisionReached(step, "assumption");
+  }, [step]);
+
+  useEffect(() => {
+    if (phase !== "truth" || trackedTruths.current.has(step)) return;
+    trackedTruths.current.add(step);
+    trackRevisionReached(step, "truth");
+  }, [phase, step]);
+
+  useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    if (artifact && !dialog.open) dialog.showModal();
+    if (artifact && !dialog.open) {
+      trackArtifactOpened(artifact);
+      dialog.showModal();
+    }
     if (!artifact && dialog.open) dialog.close();
   }, [artifact]);
 
@@ -207,7 +231,6 @@ export default function Home() {
       field.dataset.phase = nextPhase;
 
       if (nextStep !== stepRef.current) {
-        setScrollDirection(nextStep > stepRef.current ? "forward" : "backward");
         stepRef.current = nextStep;
         setStep(nextStep);
       }
@@ -266,13 +289,12 @@ export default function Home() {
     });
   }
 
-  function rejectWord(direction = 1) {
+  function rejectWord(method: "tap" | "drag" = "tap") {
     if (phase === "truth") return;
 
-    const word = wrongWordRef.current;
-    word?.style.setProperty("--throw-x", `${direction * 58}vw`);
-    word?.style.setProperty("--throw-y", `${step % 2 === 0 ? -18 : 18}vh`);
+    trackAssumptionRejected(step, revision.wrong, method);
     setDragging(false);
+    clearDragStyles();
     scrollToChapterProgress(step, REWRITE_END + 0.08);
   }
 
@@ -305,7 +327,7 @@ export default function Home() {
 
     if (travelled > 58) {
       ignoreNextClick.current = true;
-      rejectWord(x < 0 ? -1 : 1);
+      rejectWord("drag");
       return;
     }
 
@@ -317,7 +339,7 @@ export default function Home() {
       ignoreNextClick.current = false;
       return;
     }
-    rejectWord(step % 2 === 0 ? 1 : -1);
+    rejectWord();
   }
 
   function cancelDrag() {
@@ -327,6 +349,7 @@ export default function Home() {
   }
 
   function jumpToQuestion() {
+    trackJumpToQuestion(step);
     setDragging(false);
     scrollToChapterProgress(revisions.length - 1, REWRITE_END + 0.05);
   }
@@ -334,7 +357,7 @@ export default function Home() {
   return (
     <main
       ref={fieldRef}
-      className={`mind phase-${phase} step-${step} scroll-${scrollDirection}`}
+      className={`mind phase-${phase} step-${step}`}
       onPointerMove={updatePointer}
       style={
         {
@@ -542,17 +565,18 @@ export default function Home() {
                       href={mailto}
                       tabIndex={phase === "truth" ? 0 : -1}
                       aria-describedby="problem-hint"
+                      onClick={() => trackContactIntent(problem.trim().length > 0)}
                     >
                       Send the unresolved version <span aria-hidden="true">↗</span>
                     </a>
                   </div>
                 </div>
-              ) : (
+              ) : step === 0 ? (
                 <div className="scroll-prompt" aria-hidden="true">
                   <span>Keep scrolling</span>
                   <i>↓</i>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -635,6 +659,9 @@ export default function Home() {
               href={artifacts[artifact].url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() =>
+                trackProjectLinkClicked(artifacts[artifact].name, artifacts[artifact].host)
+              }
             >
               Visit {artifacts[artifact].host} <span aria-hidden="true">↗</span>
             </a>

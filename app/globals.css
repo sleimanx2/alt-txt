@@ -142,10 +142,7 @@ textarea:focus-visible {
   letter-spacing: -0.06em;
   pointer-events: none;
   white-space: nowrap;
-  opacity: calc(0.5 + (var(--rewrite) * 0.35));
-  transform:
-    translate3d(calc(var(--story-progress) * 2.5vw), calc(var(--local-progress) * -1.2vh), 0);
-  will-change: transform, opacity;
+  opacity: 0.55;
 }
 
 .mind.step-1::before {
@@ -172,15 +169,13 @@ textarea:focus-visible {
   position: absolute;
   z-index: -1;
   inset: 0;
-  opacity: calc(0.28 + var(--tension) * 0.22);
+  opacity: 0.32;
   pointer-events: none;
   background-image:
     linear-gradient(rgba(18, 20, 26, 0.016) 1px, transparent 1px),
     linear-gradient(90deg, rgba(18, 20, 26, 0.012) 1px, transparent 1px);
   background-size: 5px 6px, 8px 7px;
   mask-image: linear-gradient(160deg, #000, rgba(0, 0, 0, 0.28) 52%, #000);
-  transform: translate3d(calc(var(--local-progress) * -6px), calc(var(--rewrite) * 4px), 0);
-  will-change: transform, opacity;
 }
 
 .registration {
@@ -222,8 +217,7 @@ textarea:focus-visible {
 
 .mind:has(button:hover) .proof-cursor,
 .mind:has(a:hover) .proof-cursor {
-  opacity: 1;
-  transform: translate(10px, 10px) scale(1.35);
+  opacity: 0.9;
 }
 
 .mind-header {
@@ -383,7 +377,7 @@ textarea:focus-visible {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  animation: land-in-margin 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: land-in-margin 280ms ease both;
 }
 
 .discarded-word:nth-child(2n) {
@@ -436,18 +430,6 @@ textarea:focus-visible {
   width: 100%;
   max-width: 1120px;
   min-height: min(52vh, 420px);
-  animation: chapter-settle 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.scroll-backward .rewrite-stack {
-  animation-name: chapter-settle-backward;
-}
-
-.mind.step-1 .wrong-word,
-.mind.step-3 .wrong-word,
-.mind.step-5 .wrong-word {
-  --throw-x: -38vw;
-  --throw-y: 10vh;
 }
 
 .chapter-meter {
@@ -455,7 +437,7 @@ textarea:focus-visible {
   left: 0;
   right: 0;
   bottom: 48px;
-  height: 2px;
+  height: 1px;
   background: rgba(18, 20, 26, 0.1);
   overflow: hidden;
 }
@@ -464,10 +446,9 @@ textarea:focus-visible {
   display: block;
   width: 100%;
   height: 100%;
-  background: var(--mark-deep);
+  background: var(--mark);
   transform: scaleX(var(--local-progress));
   transform-origin: left center;
-  will-change: transform;
 }
 
 .revision-coordinate {
@@ -505,11 +486,8 @@ textarea:focus-visible {
 .assumption-copy {
   position: relative;
   z-index: 2;
-  opacity: calc(1 - var(--rewrite) * 1.05);
-  transform: translate3d(0, calc(var(--rewrite) * -24px), 0);
-  filter: blur(calc(var(--rewrite) * 0.6px));
+  opacity: calc(1 - var(--rewrite));
   pointer-events: auto;
-  will-change: opacity, transform, filter;
 }
 
 .mind[data-phase="truth"] .assumption-copy {
@@ -528,8 +506,6 @@ textarea:focus-visible {
   font-weight: 400;
   line-height: 1.4;
   color: var(--ink-soft);
-  opacity: calc(0.72 + var(--tension) * 0.28);
-  transform: translate3d(0, calc(var(--tension) * -4px), 0);
 }
 
 .editor-note::before {
@@ -560,8 +536,6 @@ textarea:focus-visible {
 .wrong-word {
   --drag-x: 0px;
   --drag-y: 0px;
-  --throw-x: 42vw;
-  --throw-y: -12vh;
   position: relative;
   z-index: 0;
   display: inline-block;
@@ -579,22 +553,14 @@ textarea:focus-visible {
   text-transform: inherit;
   text-decoration: line-through;
   text-decoration-color: var(--mark);
-  text-decoration-thickness: calc(0.02em + var(--tension) * 0.035em);
+  text-decoration-thickness: 0.035em;
   text-decoration-skip-ink: none;
-  opacity: calc(1 - var(--rewrite) * 0.92);
-  transform:
-    translate3d(
-      calc(var(--drag-x) + var(--rewrite) * var(--throw-x) + var(--tension) * -2px),
-      calc(var(--drag-y) + var(--rewrite) * var(--throw-y)),
-      0
-    )
-    rotate(calc(var(--rewrite) * 8deg))
-    scale(calc(1 - var(--rewrite) * 0.28));
-  transition: color 180ms ease, background-color 180ms ease;
+  opacity: calc(1 - var(--rewrite) * 0.85);
+  transform: translate3d(var(--drag-x), var(--drag-y), 0);
+  transition: color 160ms ease, background-color 160ms ease;
   user-select: none;
   touch-action: none;
   isolation: isolate;
-  will-change: transform, opacity;
 }
 
 .wrong-word::before {
@@ -604,8 +570,8 @@ textarea:focus-visible {
   z-index: -1;
   border: 1px solid var(--mark);
   border-radius: 0;
-  background: color-mix(in srgb, var(--mark) calc(6% + var(--tension) * 18%), transparent);
-  transition: background-color 180ms ease, border-color 180ms ease;
+  background: var(--mark-wash);
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
 
 .wrong-word::after {
@@ -633,7 +599,6 @@ textarea:focus-visible {
   z-index: 20;
   cursor: grabbing;
   opacity: 1;
-  transform: translate3d(var(--drag-x), var(--drag-y), 0) scale(1.02);
 }
 
 .wrong-word i {
@@ -663,8 +628,7 @@ textarea:focus-visible {
 }
 
 .assumption-heading > span {
-  opacity: calc(1 - var(--rewrite) * 0.82);
-  transition: none;
+  opacity: calc(1 - var(--rewrite) * 0.55);
 }
 
 .gesture-hint {
@@ -682,8 +646,7 @@ textarea:focus-visible {
   line-height: 1.4;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  opacity: calc(1 - var(--rewrite) * 1.4);
-  transform: translateY(calc(var(--rewrite) * 14px));
+  opacity: calc(1 - var(--rewrite));
 }
 
 .gesture-line {
@@ -706,10 +669,8 @@ textarea:focus-visible {
   inset: 0 auto auto 0;
   z-index: 3;
   width: 100%;
-  opacity: calc(var(--rewrite) * var(--rewrite));
-  transform: translate3d(0, calc((1 - var(--rewrite)) * 14px), 0);
+  opacity: var(--rewrite);
   pointer-events: none;
-  will-change: opacity, transform;
 }
 
 .mind[data-phase="truth"] .truth-copy {
@@ -734,7 +695,6 @@ textarea:focus-visible {
   font-size: var(--label-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: calc((var(--rewrite) - 0.35) / 0.65);
 }
 
 .truth-heading {
@@ -754,8 +714,6 @@ textarea:focus-visible {
   line-height: 1.5;
   color: var(--ink-soft);
   text-wrap: pretty;
-  opacity: calc((var(--rewrite) - 0.45) / 0.55);
-  transform: translateY(calc((1 - var(--rewrite)) * 16px));
 }
 
 .scroll-prompt,
@@ -763,8 +721,7 @@ textarea:focus-visible {
 .artifact-footnotes,
 .outcome-proof,
 .problem-trace {
-  opacity: calc((var(--rewrite) - 0.55) / 0.45);
-  transform: translateY(calc((1 - var(--rewrite)) * 20px));
+  opacity: calc((var(--rewrite) - 0.4) / 0.6);
 }
 
 .scroll-prompt {
@@ -781,11 +738,10 @@ textarea:focus-visible {
 }
 
 .scroll-prompt i {
-  color: var(--mark-deep);
+  color: var(--mark);
   font-family: var(--sans);
-  font-size: 22px;
+  font-size: 18px;
   font-style: normal;
-  animation: scroll-nudge 1.8s ease-in-out infinite;
 }
 
 .swarm-proof {
@@ -833,12 +789,11 @@ textarea:focus-visible {
   font-size: 22px;
   line-height: 1.25;
   text-align: left;
-  transition: background-color 200ms ease, transform 200ms ease;
+  transition: background-color 160ms ease;
 }
 
 .artifact-footnotes button:hover {
   background: var(--mark-wash);
-  transform: translateX(4px);
 }
 
 .artifact-footnotes button span,
@@ -980,7 +935,7 @@ textarea:focus-visible {
   place-items: center;
   border: 0;
   color: var(--faint);
-  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, width 240ms ease;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease;
 }
 
 .revision-history li button {
@@ -1006,7 +961,6 @@ textarea:focus-visible {
 }
 
 .revision-history li.is-current button {
-  min-width: calc(36px + var(--local-progress) * 12px);
   border-color: var(--ink);
   background: var(--ink);
   color: var(--paper);
@@ -1173,49 +1127,14 @@ textarea:focus-visible {
   pointer-events: none;
   transform: scaleY(var(--story-progress));
   transform-origin: top;
-  will-change: transform;
-}
-
-@keyframes scroll-nudge {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(6px);
-  }
-}
-
-@keyframes chapter-settle {
-  from {
-    opacity: 0.35;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes chapter-settle-backward {
-  from {
-    opacity: 0.35;
-    transform: translateY(-18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 @keyframes land-in-margin {
   from {
     opacity: 0;
-    transform: translateX(-24px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
   }
 }
 
@@ -1367,17 +1286,8 @@ textarea:focus-visible {
   }
 
   .wrong-word {
-    --throw-x: 28vw;
-    --throw-y: -8vh;
     min-width: 48px;
     min-height: 48px;
-  }
-
-  .mind.step-1 .wrong-word,
-  .mind.step-3 .wrong-word,
-  .mind.step-5 .wrong-word {
-    --throw-x: -28vw;
-    --throw-y: 8vh;
   }
 
   .wrong-word::after {
@@ -1689,16 +1599,10 @@ textarea:focus-visible {
     display: none;
   }
 
-  .mind::before,
-  .paper-grain,
-  .registration,
   .assumption-copy,
   .truth-copy,
   .wrong-word,
-  .editor-note,
   .gesture-hint,
-  .correction-mark,
-  .earned-evidence,
   .scroll-prompt,
   .swarm-proof,
   .artifact-footnotes,
@@ -1707,25 +1611,5 @@ textarea:focus-visible {
   .chapter-meter span,
   .mind::after {
     transition: none !important;
-    filter: none !important;
-  }
-
-  .scroll-prompt i {
-    animation: none;
-  }
-
-  .assumption-copy {
-    opacity: calc(1 - var(--rewrite));
-    transform: none;
-  }
-
-  .truth-copy {
-    opacity: var(--rewrite);
-    transform: none;
-  }
-
-  .wrong-word {
-    opacity: calc(1 - var(--rewrite));
-    transform: none;
   }
 }
