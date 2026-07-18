@@ -117,17 +117,21 @@ type ArtifactKey = keyof typeof artifacts;
 type Phase = "assumption" | "correcting" | "truth";
 type DiscardedWord = { word: string; residue: string; step: number };
 
-const REWRITE_START = 0.2;
-const REWRITE_END = 0.62;
+const DESKTOP_CURVE = { start: 0.2, end: 0.62, truthRest: 0.72 };
+const MOBILE_CURVE = { start: 0.1, end: 0.48, truthRest: 0.64 };
 
 function clamp(value: number, min = 0, max = 1) {
   return Math.min(max, Math.max(min, value));
 }
 
-function rewriteFromLocal(local: number) {
-  const linear = clamp((local - REWRITE_START) / (REWRITE_END - REWRITE_START));
+function rewriteFromLocal(local: number, start: number, end: number) {
+  const linear = clamp((local - start) / (end - start));
   // Smoothstep so the correction accelerates through the middle of the scroll.
   return linear * linear * (3 - 2 * linear);
+}
+
+function isCompactViewport() {
+  return window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
 }
 
 function phaseFromRewrite(rewrite: number): Phase {
@@ -154,7 +158,11 @@ export default function Home() {
   const stepRef = useRef(0);
   const phaseRef = useRef<Phase>("assumption");
   const rewriteRef = useRef(0);
+  const localRef = useRef(0);
   const scrollRaf = useRef(0);
+  const settleTimer = useRef(0);
+  const settling = useRef(false);
+  const curveRef = useRef({ ...DESKTOP_CURVE, compact: false });
   const trackedAssumptions = useRef(new Set<number>());
   const trackedTruths = useRef(new Set<number>());
 
@@ -212,25 +220,39 @@ export default function Home() {
     const flow = flowRef.current;
     if (!field || !flow) return;
 
-    const applyProgress = () => {
-      scrollRaf.current = 0;
-
+    const readChapter = () => {
       const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
       const scrolled = clamp(-flow.getBoundingClientRect().top / total);
       const chapterFloat = scrolled * revisions.length;
       const nextStep = Math.min(Math.floor(chapterFloat), revisions.length - 1);
       const local = clamp(chapterFloat - nextStep);
+      return { total, scrolled, nextStep, local };
+    };
+
+    const syncCurve = () => {
+      const compact = isCompactViewport();
+      curveRef.current = compact
+        ? { ...MOBILE_CURVE, compact: true }
+        : { ...DESKTOP_CURVE, compact: false };
+    };
+
+    const applyProgress = () => {
+      scrollRaf.current = 0;
+      syncCurve();
+
+      const { start, end } = curveRef.current;
+      const { scrolled, nextStep, local } = readChapter();
       const rewrite = reduceMotion.current
         ? local < 0.5
           ? 0
           : 1
-        : rewriteFromLocal(local);
+        : rewriteFromLocal(local, start, end);
       const nextPhase = phaseFromRewrite(rewrite);
 
       field.style.setProperty("--story-progress", scrolled.toFixed(4));
       field.style.setProperty("--local-progress", local.toFixed(4));
       field.style.setProperty("--rewrite", rewrite.toFixed(4));
-      field.style.setProperty("--tension", clamp(local / REWRITE_START).toFixed(4));
+      field.style.setProperty("--tension", clamp(local / start).toFixed(4));
       field.dataset.phase = nextPhase;
 
       if (nextStep !== stepRef.current) {
@@ -244,21 +266,69 @@ export default function Home() {
         setPhase(nextPhase);
       }
 
+      localRef.current = local;
       rewriteRef.current = rewrite;
+    };
+
+    const scrollToLocal = (targetStep: number, localProgress: number, smooth: boolean) => {
+      const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
+      const chapterSpan = total / revisions.length;
+      const top =
+        flow.offsetTop +
+        chapterSpan * (clamp(targetStep, 0, revisions.length - 1) + clamp(localProgress));
+
+      settling.current = true;
+      window.scrollTo({
+        top,
+        behavior: smooth && !reduceMotion.current ? "smooth" : "auto",
+      });
+      window.setTimeout(() => {
+        settling.current = false;
+      }, smooth ? 420 : 80);
+    };
+
+    const settleMobileScroll = () => {
+      if (settling.current || reduceMotion.current || !curveRef.current.compact) return;
+
+      const { start, end, truthRest } = curveRef.current;
+      const { nextStep, local } = readChapter();
+
+      // Only correct floaty mid-rewrite stops — leave settled assumption/truth alone.
+      if (local > start && local < end) {
+        scrollToLocal(nextStep, truthRest, true);
+        return;
+      }
+
+      // If a flick lands just short of the next chapter, park in truth rest.
+      if (local > end && local < 0.78 && Math.abs(local - truthRest) > 0.06) {
+        scrollToLocal(nextStep, truthRest, true);
+      }
     };
 
     const onScroll = () => {
       if (scrollRaf.current) return;
       scrollRaf.current = window.requestAnimationFrame(applyProgress);
+
+      if (!isCompactViewport()) return;
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(settleMobileScroll, 120);
+    };
+
+    const onScrollEnd = () => {
+      window.clearTimeout(settleTimer.current);
+      settleMobileScroll();
     };
 
     applyProgress();
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scrollend", onScrollEnd, { passive: true });
     window.addEventListener("resize", onScroll);
 
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scrollend", onScrollEnd);
       window.removeEventListener("resize", onScroll);
+      window.clearTimeout(settleTimer.current);
       if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
     };
   }, []);
@@ -297,7 +367,7 @@ export default function Home() {
     if (phase === "truth") return;
 
     const word = wrongWordRef.current;
-    const compact = window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+    const compact = isCompactViewport();
     const throwX = compact ? 22 : 42;
     const throwY = compact ? 6 : 12;
     word?.style.setProperty("--throw-x", `${direction * throwX}vw`);
@@ -305,7 +375,10 @@ export default function Home() {
 
     trackAssumptionRejected(step, revision.wrong, method);
     setDragging(false);
-    scrollToChapterProgress(step, REWRITE_END + 0.08);
+    scrollToChapterProgress(
+      step,
+      compact ? MOBILE_CURVE.truthRest : DESKTOP_CURVE.truthRest,
+    );
   }
 
   function handleWordPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -361,7 +434,10 @@ export default function Home() {
   function jumpToQuestion() {
     trackJumpToQuestion(step);
     setDragging(false);
-    scrollToChapterProgress(revisions.length - 1, REWRITE_END + 0.05);
+    scrollToChapterProgress(
+      revisions.length - 1,
+      isCompactViewport() ? MOBILE_CURVE.truthRest : DESKTOP_CURVE.truthRest,
+    );
   }
 
   return (

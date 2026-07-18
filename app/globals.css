@@ -1397,7 +1397,8 @@ textarea:focus-visible {
   }
 
   .scroll-story {
-    min-height: calc(var(--chapter-count, 6) * 90dvh);
+    /* Shorter chapters so one deliberate flick can finish a rewrite */
+    min-height: calc(var(--chapter-count, 6) * 72dvh);
   }
 
   .mind::before {
