@@ -1,9 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { IBM_Plex_Sans, Newsreader, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
 const fallbackOrigin = "https://alt-txt.com";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#e8e6e1",
+};
 
 const display = IBM_Plex_Sans({
   variable: "--font-display",

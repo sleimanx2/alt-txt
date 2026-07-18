@@ -78,32 +78,9 @@ const revisions = [
   },
 ] as const;
 
-const artifacts = {
-  krekib: {
-    index: "01",
-    name: "Krekib",
-    status: "researching / live",
-    question: "Can buying advice reward craft instead of whoever shouts loudest?",
-    experiment:
-      "Agents compare thousands of sources. Human judgment decides what deserves weight.",
-    finding: "More information is useless until someone decides what matters.",
-  },
-  cejour: {
-    index: "02",
-    name: "CeJour",
-    status: "producing / live",
-    question: "Can a brand keep moving without consuming the people who give it taste?",
-    experiment:
-      "A quiet system writes, composes, and publishes. Humans keep the consequential decisions.",
-    finding: "Automation matters most when it protects human attention.",
-  },
-} as const;
-
-type ArtifactKey = keyof typeof artifacts;
 type Phase = "assumption" | "correcting" | "truth";
 type DiscardedWord = { word: string; residue: string; step: number };
 
-const CHAPTER_VH = 110;
 const REWRITE_START = 0.2;
 const REWRITE_END = 0.62;
 
@@ -128,13 +105,11 @@ export default function Home() {
   const [phase, setPhase] = useState<Phase>("assumption");
   const [scrollDirection, setScrollDirection] = useState<"forward" | "backward">("forward");
   const [dragging, setDragging] = useState(false);
-  const [artifact, setArtifact] = useState<ArtifactKey | null>(null);
   const [problem, setProblem] = useState("");
 
   const fieldRef = useRef<HTMLElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const wrongWordRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const ignoreNextClick = useRef(false);
   const reduceMotion = useRef(false);
@@ -151,6 +126,12 @@ export default function Home() {
     residue: item.residue,
     step: index,
   }));
+  const statusAnnouncement =
+    phase === "truth"
+      ? `Revision ${progress} corrected. ${revision.truth} ${revision.evidence}`
+      : phase === "correcting"
+        ? `Revision ${progress} is being rewritten.`
+        : `Revision ${progress}. ${revision.prefix}${revision.wrong}${revision.suffix} ${revision.annotation}`;
 
   const mailto = useMemo(() => {
     const unresolved = problem.trim() || "The part of our business that feels harder than it should is…";
@@ -162,14 +143,6 @@ export default function Home() {
   useEffect(() => {
     reduceMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }, []);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    if (artifact && !dialog.open) dialog.showModal();
-    if (!artifact && dialog.open) dialog.close();
-  }, [artifact]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -322,8 +295,6 @@ export default function Home() {
     scrollToChapterProgress(revisions.length - 1, REWRITE_END + 0.05);
   }
 
-  const storyHeight = `${revisions.length * CHAPTER_VH}svh`;
-
   return (
     <main
       ref={fieldRef}
@@ -343,55 +314,63 @@ export default function Home() {
         Skip to the active thought
       </a>
 
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {statusAnnouncement}
+      </p>
+
       <div className="paper-grain" aria-hidden="true" />
       <div className="registration registration-one" aria-hidden="true">+</div>
       <div className="registration registration-two" aria-hidden="true">+</div>
       <div className="proof-cursor" aria-hidden="true" />
 
       <header className="mind-header">
-        <span className="mind-wordmark" translate="no">ALT—TXT</span>
-        <span className="mind-status">
-          <i aria-hidden="true" /> reviewing assumption {progress}
+        <a className="mind-wordmark" href="#active-thought" translate="no">
+          ALT—TXT
+        </a>
+        <span className="mind-status" aria-hidden="true">
+          <i /> reviewing assumption {progress}
         </span>
         <button
           className="question-shortcut"
           type="button"
           onClick={jumpToQuestion}
-          aria-label="Skip to the final question"
+          aria-label="Skip to the final question, revision 6 of 6"
         >
-          <span>
-            Bring us a hard thing
+          <span className="question-shortcut-label">
+            <span className="question-shortcut-long">Bring us a hard thing</span>
+            <span className="question-shortcut-short">Question</span>
             <small>Skip to 06 / 06</small>
           </span>
           <span aria-hidden="true">↗</span>
         </button>
       </header>
 
-      <aside className="discard-margin" aria-label="Assumptions removed from the work">
-        <p>Removed from the work</p>
-        <div className="discard-pile">
+      <aside
+        className={`discard-margin ${discarded.length === 0 ? "is-empty" : ""}`}
+        aria-label="Assumptions removed from the work"
+        aria-hidden={discarded.length === 0 ? true : undefined}
+      >
+        <p id="discard-heading">Removed from the work</p>
+        <div className="discard-pile" aria-labelledby="discard-heading">
           {discarded.length === 0 ? (
-            <span className="empty-pile">margin currently empty</span>
+            <span className="empty-pile">No assumptions removed yet</span>
           ) : (
-            discarded.map((item) => (
-              <span
-                className="discarded-word"
-                key={`${item.step}-${item.word}`}
-                title={item.residue}
-              >
-                <del>{item.word}</del>
-                <small>{item.residue}</small>
-              </span>
-            ))
+            <ul className="discard-list">
+              {discarded.map((item) => (
+                <li
+                  className="discarded-word"
+                  key={`${item.step}-${item.word}`}
+                >
+                  <del>{item.word}</del>
+                  <small>{item.residue}</small>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </aside>
 
-      <div
-        ref={flowRef}
-        className="revision-flow scroll-story"
-        style={{ minHeight: storyHeight }}
-      >
+      <div ref={flowRef} className="revision-flow scroll-story">
         <div className="revision-stage" id="active-thought">
           <div className="revision-coordinate" aria-hidden="true">
             <span>REV. {progress}</span>
@@ -405,9 +384,15 @@ export default function Home() {
           </div>
 
           <div className="rewrite-stack" key={step}>
-            <div className="assumption-copy" aria-hidden={phase === "truth"}>
-              <p className="editor-note">{revision.annotation}</p>
-              <h1 className="sr-only">
+            <div
+              className="assumption-copy"
+              aria-hidden={phase === "truth"}
+              inert={phase === "truth" ? true : undefined}
+            >
+              <p className="editor-note" id="editor-note">
+                {revision.annotation}
+              </p>
+              <h1 className="sr-only" id="active-heading">
                 {phase === "truth"
                   ? revision.truth
                   : `${revision.prefix}${revision.wrong}${revision.suffix}`}
@@ -422,7 +407,7 @@ export default function Home() {
                   disabled={phase === "truth"}
                   tabIndex={phase === "truth" ? -1 : 0}
                   aria-label={`Remove the word “${revision.wrong}” and reveal the correction`}
-                  aria-describedby="interaction-instruction"
+                  aria-describedby="editor-note interaction-instruction"
                   onPointerDown={handleWordPointerDown}
                   onPointerMove={handleWordPointerMove}
                   onPointerUp={handleWordPointerUp}
@@ -438,47 +423,66 @@ export default function Home() {
                 <span aria-hidden="true">{revision.suffix}</span>
               </div>
               <span className="sr-only" id="interaction-instruction">
-                Tap or drag the circled word, or keep scrolling to rewrite it.
+                Activate the marked word, or keep scrolling, to rewrite this assumption.
               </span>
               <div className="gesture-hint" aria-hidden="true">
                 <span className="gesture-line" />
-                <span>Tap or drag the marked word</span>
-                <span>or scroll to rewrite ↓</span>
+                <span className="gesture-hint-full">Tap or drag the marked word</span>
+                <span className="gesture-hint-full">or scroll to rewrite ↓</span>
+                <span className="gesture-hint-short">Tap word or scroll ↓</span>
               </div>
             </div>
 
-            <div className="truth-copy" aria-hidden={phase !== "truth"} aria-live="polite">
+            <div
+              className="truth-copy"
+              aria-hidden={phase !== "truth"}
+              inert={phase !== "truth" ? true : undefined}
+            >
               <p className="correction-mark">{revision.proof}</p>
-              <h1 aria-hidden="true">{revision.truth}</h1>
+              <p className="truth-heading" aria-hidden="true">
+                {revision.truth}
+              </p>
               <p className="earned-evidence">{revision.evidence}</p>
 
               {revision.kind === "swarm" && (
-                <div className="swarm-proof" aria-label="Specialized agent capabilities">
-                  <span>research synthesis</span>
-                  <span>finance</span>
-                  <span>operations</span>
-                  <span>engineering</span>
-                  <span>pattern finding</span>
-                </div>
+                <ul className="swarm-proof" aria-label="Specialized agent capabilities">
+                  <li>research synthesis</li>
+                  <li>finance</li>
+                  <li>operations</li>
+                  <li>engineering</li>
+                  <li>pattern finding</li>
+                </ul>
               )}
 
               {revision.kind === "artifacts" && (
-                <div className="artifact-footnotes" aria-label="Research evidence">
-                  <button type="button" onClick={() => setArtifact("krekib")}>
-                    <span>*01</span> Krekib <em>researching</em>
-                  </button>
-                  <button type="button" onClick={() => setArtifact("cejour")}>
-                    <span>*02</span> CeJour <em>producing</em>
-                  </button>
+                <div className="artifact-footnotes" aria-label="Live evidence">
+                  <a
+                    href="https://krekib.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Visit Krekib at krekib.com"
+                  >
+                    <span aria-hidden="true">*01</span> Krekib{" "}
+                    <em aria-hidden="true">krekib.com</em>
+                  </a>
+                  <a
+                    href="https://cejour.la"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Visit CeJour at cejour.la"
+                  >
+                    <span aria-hidden="true">*02</span> CeJour{" "}
+                    <em aria-hidden="true">cejour.la</em>
+                  </a>
                 </div>
               )}
 
               {revision.kind === "outcome" && (
-                <div className="outcome-proof">
+                <div className="outcome-proof" aria-label="Outcome measures">
                   <span>hours returned</span>
                   <span>decisions improved</span>
                   <span>margin created</span>
-                  <strong>shipping is not proof. change is.</strong>
+                  <strong>Shipping is not proof. Change is.</strong>
                 </div>
               )}
 
@@ -491,15 +495,20 @@ export default function Home() {
                     id="unresolved-problem"
                     name="unresolved-problem"
                     autoComplete="off"
-                    rows={2}
+                    spellCheck
+                    rows={3}
                     value={problem}
                     onChange={(event) => setProblem(event.target.value)}
                     placeholder="The handoff between sales and operations keeps…"
                     tabIndex={phase === "truth" ? 0 : -1}
                   />
                   <div>
-                    <small>Bring the messy version. 2 sentences is enough.</small>
-                    <a href={mailto} tabIndex={phase === "truth" ? 0 : -1}>
+                    <small id="problem-hint">Bring the messy version. 2 sentences is enough.</small>
+                    <a
+                      href={mailto}
+                      tabIndex={phase === "truth" ? 0 : -1}
+                      aria-describedby="problem-hint"
+                    >
                       Send the unresolved version <span aria-hidden="true">↗</span>
                     </a>
                   </div>
@@ -519,65 +528,36 @@ export default function Home() {
         </div>
       </div>
 
-      <ol className="revision-history" aria-label={`Revision ${step + 1} of ${revisions.length}`}>
-        {revisions.map((item, index) => (
-          <li
-            key={item.wrong}
-            aria-current={index === step ? "step" : undefined}
-            aria-label={`Assumption ${index + 1}: ${item.wrong}`}
-            className={`${index < step || (index === step && phase === "truth") ? "is-complete" : ""} ${
-              index === step ? "is-current" : ""
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => scrollToChapterProgress(index, 0.08)}
-              aria-label={`Go to assumption ${index + 1}`}
-            >
-              <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
+      <nav aria-label="Revision chapters">
+        <ol className="revision-history">
+          {revisions.map((item, index) => {
+            const isComplete = index < step || (index === step && phase === "truth");
+            const isCurrent = index === step;
+            return (
+              <li
+                key={item.wrong}
+                aria-current={isCurrent ? "step" : undefined}
+                className={`${isComplete ? "is-complete" : ""} ${isCurrent ? "is-current" : ""}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => scrollToChapterProgress(index, 0.08)}
+                  aria-label={`Go to assumption ${index + 1}: ${item.wrong}${
+                    isComplete ? ", corrected" : ""
+                  }${isCurrent ? ", current" : ""}`}
+                >
+                  <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
 
       <div className="quiet-proof" aria-hidden="true">
         <span>Technology is the easy part.</span>
         <span>Finding the right problem is the work.</span>
       </div>
-
-      <dialog
-        ref={dialogRef}
-        className="artifact-dialog"
-        onClose={() => setArtifact(null)}
-        aria-labelledby="artifact-title"
-      >
-        {artifact && (
-          <div className="artifact-sheet">
-            <div className="artifact-sheet-head">
-              <span>LAB EVIDENCE / {artifacts[artifact].index}</span>
-              <button type="button" onClick={() => dialogRef.current?.close()}>
-                Close evidence <span aria-hidden="true">×</span>
-              </button>
-            </div>
-            <p className="artifact-status">{artifacts[artifact].status}</p>
-            <h2 id="artifact-title">{artifacts[artifact].name}</h2>
-            <dl>
-              <div>
-                <dt>Question</dt>
-                <dd>{artifacts[artifact].question}</dd>
-              </div>
-              <div>
-                <dt>Experiment</dt>
-                <dd>{artifacts[artifact].experiment}</dd>
-              </div>
-              <div>
-                <dt>Trace left behind</dt>
-                <dd>{artifacts[artifact].finding}</dd>
-              </div>
-            </dl>
-          </div>
-        )}
-      </dialog>
     </main>
   );
 }
