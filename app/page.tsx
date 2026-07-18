@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
@@ -102,24 +103,54 @@ type ArtifactKey = keyof typeof artifacts;
 type Phase = "assumption" | "correcting" | "truth";
 type DiscardedWord = { word: string; residue: string; step: number };
 
+const CHAPTER_VH = 110;
+const REWRITE_START = 0.2;
+const REWRITE_END = 0.62;
+
+function clamp(value: number, min = 0, max = 1) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function rewriteFromLocal(local: number) {
+  const linear = clamp((local - REWRITE_START) / (REWRITE_END - REWRITE_START));
+  // Smoothstep so the correction accelerates through the middle of the scroll.
+  return linear * linear * (3 - 2 * linear);
+}
+
+function phaseFromRewrite(rewrite: number): Phase {
+  if (rewrite < 0.18) return "assumption";
+  if (rewrite < 0.82) return "correcting";
+  return "truth";
+}
+
 export default function Home() {
   const [step, setStep] = useState(0);
   const [phase, setPhase] = useState<Phase>("assumption");
-  const [discarded, setDiscarded] = useState<DiscardedWord[]>([]);
+  const [scrollDirection, setScrollDirection] = useState<"forward" | "backward">("forward");
   const [dragging, setDragging] = useState(false);
   const [artifact, setArtifact] = useState<ArtifactKey | null>(null);
   const [problem, setProblem] = useState("");
 
   const fieldRef = useRef<HTMLElement>(null);
+  const flowRef = useRef<HTMLDivElement>(null);
   const wrongWordRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const correctionTimer = useRef<number | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const ignoreNextClick = useRef(false);
   const reduceMotion = useRef(false);
+  const stepRef = useRef(0);
+  const phaseRef = useRef<Phase>("assumption");
+  const rewriteRef = useRef(0);
+  const scrollRaf = useRef(0);
 
   const revision = revisions[step];
   const progress = `${String(step + 1).padStart(2, "0")} / ${String(revisions.length).padStart(2, "0")}`;
+  const resolvedCount = phase === "truth" ? step + 1 : step;
+  const discarded: DiscardedWord[] = revisions.slice(0, resolvedCount).map((item, index) => ({
+    word: item.wrong,
+    residue: item.residue,
+    step: index,
+  }));
 
   const mailto = useMemo(() => {
     const unresolved = problem.trim() || "The part of our business that feels harder than it should is…";
@@ -130,9 +161,6 @@ export default function Home() {
 
   useEffect(() => {
     reduceMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    return () => {
-      if (correctionTimer.current !== null) window.clearTimeout(correctionTimer.current);
-    };
   }, []);
 
   useEffect(() => {
@@ -142,6 +170,62 @@ export default function Home() {
     if (artifact && !dialog.open) dialog.showModal();
     if (!artifact && dialog.open) dialog.close();
   }, [artifact]);
+
+  useEffect(() => {
+    const field = fieldRef.current;
+    const flow = flowRef.current;
+    if (!field || !flow) return;
+
+    const applyProgress = () => {
+      scrollRaf.current = 0;
+
+      const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
+      const scrolled = clamp(-flow.getBoundingClientRect().top / total);
+      const chapterFloat = scrolled * revisions.length;
+      const nextStep = Math.min(Math.floor(chapterFloat), revisions.length - 1);
+      const local = clamp(chapterFloat - nextStep);
+      const rewrite = reduceMotion.current
+        ? local < 0.5
+          ? 0
+          : 1
+        : rewriteFromLocal(local);
+      const nextPhase = phaseFromRewrite(rewrite);
+
+      field.style.setProperty("--story-progress", scrolled.toFixed(4));
+      field.style.setProperty("--local-progress", local.toFixed(4));
+      field.style.setProperty("--rewrite", rewrite.toFixed(4));
+      field.style.setProperty("--tension", clamp(local / REWRITE_START).toFixed(4));
+      field.dataset.phase = nextPhase;
+
+      if (nextStep !== stepRef.current) {
+        setScrollDirection(nextStep > stepRef.current ? "forward" : "backward");
+        stepRef.current = nextStep;
+        setStep(nextStep);
+      }
+
+      if (nextPhase !== phaseRef.current) {
+        phaseRef.current = nextPhase;
+        setPhase(nextPhase);
+      }
+
+      rewriteRef.current = rewrite;
+    };
+
+    const onScroll = () => {
+      if (scrollRaf.current) return;
+      scrollRaf.current = window.requestAnimationFrame(applyProgress);
+    };
+
+    applyProgress();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
+    };
+  }, []);
 
   function updatePointer(event: ReactPointerEvent<HTMLElement>) {
     const field = fieldRef.current;
@@ -155,39 +239,43 @@ export default function Home() {
     if (!word) return;
     word.style.setProperty("--drag-x", "0px");
     word.style.setProperty("--drag-y", "0px");
-    word.style.removeProperty("--throw-x");
-    word.style.removeProperty("--throw-y");
+  }
+
+  function scrollToChapterProgress(targetStep: number, localProgress: number) {
+    const flow = flowRef.current;
+    if (!flow) return;
+
+    const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
+    const chapterSpan = total / revisions.length;
+    const top =
+      flow.offsetTop +
+      chapterSpan * (clamp(targetStep, 0, revisions.length - 1) + clamp(localProgress));
+
+    window.scrollTo({
+      top,
+      behavior: reduceMotion.current ? "auto" : "smooth",
+    });
   }
 
   function rejectWord(direction = 1) {
-    if (phase !== "assumption") return;
+    if (phase === "truth") return;
 
     const word = wrongWordRef.current;
     word?.style.setProperty("--throw-x", `${direction * 58}vw`);
     word?.style.setProperty("--throw-y", `${step % 2 === 0 ? -18 : 18}vh`);
     setDragging(false);
-    setPhase("correcting");
-
-    correctionTimer.current = window.setTimeout(() => {
-      setDiscarded((current) =>
-        current.some((item) => item.step === step)
-          ? current
-          : [...current, { word: revision.wrong, residue: revision.residue, step }],
-      );
-      setPhase("truth");
-      correctionTimer.current = null;
-    }, reduceMotion.current ? 0 : 560);
+    scrollToChapterProgress(step, REWRITE_END + 0.08);
   }
 
   function handleWordPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (phase !== "assumption") return;
+    if (phase === "truth") return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStart.current = { x: event.clientX, y: event.clientY };
     setDragging(true);
   }
 
   function handleWordPointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!dragStart.current || phase !== "assumption") return;
+    if (!dragStart.current || phase === "truth") return;
     const x = event.clientX - dragStart.current.x;
     const y = event.clientY - dragStart.current.y;
     event.currentTarget.style.setProperty("--drag-x", `${x}px`);
@@ -195,7 +283,7 @@ export default function Home() {
   }
 
   function handleWordPointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!dragStart.current || phase !== "assumption") return;
+    if (!dragStart.current || phase === "truth") return;
     const x = event.clientX - dragStart.current.x;
     const y = event.clientY - dragStart.current.y;
     const travelled = Math.hypot(x, y);
@@ -229,26 +317,27 @@ export default function Home() {
     clearDragStyles();
   }
 
-  function nextRevision() {
-    if (step >= revisions.length - 1) return;
-    setStep((current) => current + 1);
-    setPhase("assumption");
+  function jumpToQuestion() {
     setDragging(false);
+    scrollToChapterProgress(revisions.length - 1, REWRITE_END + 0.05);
   }
 
-  function jumpToQuestion() {
-    if (correctionTimer.current !== null) window.clearTimeout(correctionTimer.current);
-    correctionTimer.current = null;
-    setStep(revisions.length - 1);
-    setPhase("assumption");
-    setDragging(false);
-  }
+  const storyHeight = `${revisions.length * CHAPTER_VH}svh`;
 
   return (
     <main
       ref={fieldRef}
-      className={`mind phase-${phase} step-${step}`}
+      className={`mind phase-${phase} step-${step} scroll-${scrollDirection}`}
       onPointerMove={updatePointer}
+      style={
+        {
+          "--story-progress": "0",
+          "--local-progress": "0",
+          "--rewrite": "0",
+          "--tension": "0",
+          "--chapter-count": revisions.length,
+        } as CSSProperties
+      }
     >
       <a className="skip-link" href="#active-thought">
         Skip to the active thought
@@ -262,10 +351,19 @@ export default function Home() {
       <header className="mind-header">
         <span className="mind-wordmark" translate="no">ALT—TXT</span>
         <span className="mind-status">
-          <i aria-hidden="true" /> revising assumption {progress}
+          <i aria-hidden="true" /> reviewing assumption {progress}
         </span>
-        <button className="question-shortcut" type="button" onClick={jumpToQuestion}>
-          Bring us a hard thing <span aria-hidden="true">↗</span>
+        <button
+          className="question-shortcut"
+          type="button"
+          onClick={jumpToQuestion}
+          aria-label="Skip to the final question"
+        >
+          <span>
+            Bring us a hard thing
+            <small>Skip to 06 / 06</small>
+          </span>
+          <span aria-hidden="true">↗</span>
         </button>
       </header>
 
@@ -289,122 +387,158 @@ export default function Home() {
         </div>
       </aside>
 
-      <div className="revision-stage" id="active-thought">
-        <div className="revision-coordinate" aria-hidden="true">
-          <span>REV. {progress}</span>
-          <span>{phase === "truth" ? "assumption corrected" : "assumption under review"}</span>
-        </div>
+      <div
+        ref={flowRef}
+        className="revision-flow scroll-story"
+        style={{ minHeight: storyHeight }}
+      >
+        <div className="revision-stage" id="active-thought">
+          <div className="revision-coordinate" aria-hidden="true">
+            <span>REV. {progress}</span>
+            <span>
+              {phase === "truth"
+                ? "assumption corrected"
+                : phase === "correcting"
+                  ? "rewriting in progress"
+                  : "assumption under review"}
+            </span>
+          </div>
 
-        {phase !== "truth" ? (
-          <div className="assumption-copy" key={`assumption-${step}`}>
-            <p className="editor-note">{revision.annotation}</p>
-            <h1>
-              <span>{revision.prefix}</span>
-              <button
-                ref={wrongWordRef}
-                className={`wrong-word ${dragging ? "is-dragging" : ""}`}
-                type="button"
-                data-testid="wrong-word"
-                disabled={phase === "correcting"}
-                aria-label={`Remove ${revision.wrong} from this assumption`}
-                onPointerDown={handleWordPointerDown}
-                onPointerMove={handleWordPointerMove}
-                onPointerUp={handleWordPointerUp}
-                onPointerCancel={cancelDrag}
-                onClick={handleWordClick}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") cancelDrag();
-                }}
-              >
-                {revision.wrong}
-                <i aria-hidden="true">not quite</i>
-              </button>
-              <span>{revision.suffix}</span>
-            </h1>
-            <div className="gesture-hint" aria-hidden="true">
-              <span className="gesture-line" />
-              <span>drag the wrong word out</span>
-              <span>or tap it</span>
+          <div className="rewrite-stack" key={step}>
+            <div className="assumption-copy" aria-hidden={phase === "truth"}>
+              <p className="editor-note">{revision.annotation}</p>
+              <h1 className="sr-only">
+                {phase === "truth"
+                  ? revision.truth
+                  : `${revision.prefix}${revision.wrong}${revision.suffix}`}
+              </h1>
+              <div className="assumption-heading">
+                <span aria-hidden="true">{revision.prefix}</span>
+                <button
+                  ref={wrongWordRef}
+                  className={`wrong-word ${dragging ? "is-dragging" : ""}`}
+                  type="button"
+                  data-testid="wrong-word"
+                  disabled={phase === "truth"}
+                  tabIndex={phase === "truth" ? -1 : 0}
+                  aria-label={`Remove the word “${revision.wrong}” and reveal the correction`}
+                  aria-describedby="interaction-instruction"
+                  onPointerDown={handleWordPointerDown}
+                  onPointerMove={handleWordPointerMove}
+                  onPointerUp={handleWordPointerUp}
+                  onPointerCancel={cancelDrag}
+                  onClick={handleWordClick}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") cancelDrag();
+                  }}
+                >
+                  {revision.wrong}
+                  <i aria-hidden="true">revise</i>
+                </button>
+                <span aria-hidden="true">{revision.suffix}</span>
+              </div>
+              <span className="sr-only" id="interaction-instruction">
+                Tap or drag the circled word, or keep scrolling to rewrite it.
+              </span>
+              <div className="gesture-hint" aria-hidden="true">
+                <span className="gesture-line" />
+                <span>Tap or drag the marked word</span>
+                <span>or scroll to rewrite ↓</span>
+              </div>
+            </div>
+
+            <div className="truth-copy" aria-hidden={phase !== "truth"} aria-live="polite">
+              <p className="correction-mark">{revision.proof}</p>
+              <h1 aria-hidden="true">{revision.truth}</h1>
+              <p className="earned-evidence">{revision.evidence}</p>
+
+              {revision.kind === "swarm" && (
+                <div className="swarm-proof" aria-label="Specialized agent capabilities">
+                  <span>research synthesis</span>
+                  <span>finance</span>
+                  <span>operations</span>
+                  <span>engineering</span>
+                  <span>pattern finding</span>
+                </div>
+              )}
+
+              {revision.kind === "artifacts" && (
+                <div className="artifact-footnotes" aria-label="Research evidence">
+                  <button type="button" onClick={() => setArtifact("krekib")}>
+                    <span>*01</span> Krekib <em>researching</em>
+                  </button>
+                  <button type="button" onClick={() => setArtifact("cejour")}>
+                    <span>*02</span> CeJour <em>producing</em>
+                  </button>
+                </div>
+              )}
+
+              {revision.kind === "outcome" && (
+                <div className="outcome-proof">
+                  <span>hours returned</span>
+                  <span>decisions improved</span>
+                  <span>margin created</span>
+                  <strong>shipping is not proof. change is.</strong>
+                </div>
+              )}
+
+              {revision.kind === "invitation" ? (
+                <div className="problem-trace">
+                  <label htmlFor="unresolved-problem">
+                    The part of our business that feels harder than it should is…
+                  </label>
+                  <textarea
+                    id="unresolved-problem"
+                    name="unresolved-problem"
+                    autoComplete="off"
+                    rows={2}
+                    value={problem}
+                    onChange={(event) => setProblem(event.target.value)}
+                    placeholder="The handoff between sales and operations keeps…"
+                    tabIndex={phase === "truth" ? 0 : -1}
+                  />
+                  <div>
+                    <small>Bring the messy version. 2 sentences is enough.</small>
+                    <a href={mailto} tabIndex={phase === "truth" ? 0 : -1}>
+                      Send the unresolved version <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="scroll-prompt" aria-hidden="true">
+                  <span>Keep scrolling</span>
+                  <i>↓</i>
+                </div>
+              )}
             </div>
           </div>
-        ) : (
-          <div className="truth-copy" key={`truth-${step}`} aria-live="polite">
-            <p className="correction-mark">{revision.proof}</p>
-            <h1>{revision.truth}</h1>
-            <p className="earned-evidence">{revision.evidence}</p>
 
-            {revision.kind === "swarm" && (
-              <div className="swarm-proof" aria-label="Specialized agent capabilities">
-                <span>research synthesis</span>
-                <span>finance</span>
-                <span>operations</span>
-                <span>engineering</span>
-                <span>pattern finding</span>
-              </div>
-            )}
-
-            {revision.kind === "artifacts" && (
-              <div className="artifact-footnotes" aria-label="Research evidence">
-                <button type="button" onClick={() => setArtifact("krekib")}>
-                  <span>*01</span> Krekib <em>researching</em>
-                </button>
-                <button type="button" onClick={() => setArtifact("cejour")}>
-                  <span>*02</span> CeJour <em>producing</em>
-                </button>
-              </div>
-            )}
-
-            {revision.kind === "outcome" && (
-              <div className="outcome-proof">
-                <span>hours returned</span>
-                <span>decisions improved</span>
-                <span>margin created</span>
-                <strong>shipping is not proof. change is.</strong>
-              </div>
-            )}
-
-            {revision.kind === "invitation" ? (
-              <div className="problem-trace">
-                <label htmlFor="unresolved-problem">
-                  The part of our business that feels harder than it should is…
-                </label>
-                <textarea
-                  id="unresolved-problem"
-                  name="unresolved-problem"
-                  autoComplete="off"
-                  rows={2}
-                  value={problem}
-                  onChange={(event) => setProblem(event.target.value)}
-                  placeholder="The handoff between sales and operations keeps…"
-                />
-                <div>
-                  <small>Bring the messy version. 2 sentences is enough.</small>
-                  <a href={mailto}>
-                    Send the unresolved version <span aria-hidden="true">↗</span>
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <button className="next-assumption" type="button" onClick={nextRevision}>
-                Next assumption <span aria-hidden="true">↘</span>
-              </button>
-            )}
+          <div className="chapter-meter" aria-hidden="true">
+            <span />
           </div>
-        )}
+        </div>
       </div>
 
-      <div className="revision-history" aria-label={`Revision ${step + 1} of ${revisions.length}`}>
+      <ol className="revision-history" aria-label={`Revision ${step + 1} of ${revisions.length}`}>
         {revisions.map((item, index) => (
-          <span
+          <li
             key={item.wrong}
+            aria-current={index === step ? "step" : undefined}
+            aria-label={`Assumption ${index + 1}: ${item.wrong}`}
             className={`${index < step || (index === step && phase === "truth") ? "is-complete" : ""} ${
               index === step ? "is-current" : ""
             }`}
           >
-            {String(index + 1).padStart(2, "0")}
-          </span>
+            <button
+              type="button"
+              onClick={() => scrollToChapterProgress(index, 0.08)}
+              aria-label={`Go to assumption ${index + 1}`}
+            >
+              <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+            </button>
+          </li>
         ))}
-      </div>
+      </ol>
 
       <div className="quiet-proof" aria-hidden="true">
         <span>Technology is the easy part.</span>

@@ -15,8 +15,10 @@
 
 # next.js
 /.next/
-/.vinext/
 /out/
+
+# production
+/build
 
 # misc
 .DS_Store
@@ -35,9 +37,5 @@ yarn-error.log*
 .vercel
 
 # typescript
-next-env.d.ts
 *.tsbuildinfo
-/dist/
-/.wrangler/
-/outputs/
-/work/
+next-env.d.ts
