@@ -91,6 +91,7 @@ const artifacts = {
     index: "01",
     name: "Krekib",
     status: "researching / live",
+    role: "Buying guides that reward craft over noise",
     url: "https://krekib.com",
     host: "krekib.com",
     question: "Can buying advice reward craft instead of whoever shouts loudest?",
@@ -102,6 +103,7 @@ const artifacts = {
     index: "02",
     name: "CeJour",
     status: "producing / live",
+    role: "Quiet systems that keep a brand moving",
     url: "https://cejour.la",
     host: "cejour.la",
     question: "Can a brand keep moving without consuming the people who give it taste?",
@@ -137,6 +139,7 @@ function phaseFromRewrite(rewrite: number): Phase {
 export default function Home() {
   const [step, setStep] = useState(0);
   const [phase, setPhase] = useState<Phase>("assumption");
+  const [scrollDirection, setScrollDirection] = useState<"forward" | "backward">("forward");
   const [dragging, setDragging] = useState(false);
   const [artifact, setArtifact] = useState<ArtifactKey | null>(null);
   const [problem, setProblem] = useState("");
@@ -231,6 +234,7 @@ export default function Home() {
       field.dataset.phase = nextPhase;
 
       if (nextStep !== stepRef.current) {
+        setScrollDirection(nextStep > stepRef.current ? "forward" : "backward");
         stepRef.current = nextStep;
         setStep(nextStep);
       }
@@ -289,12 +293,18 @@ export default function Home() {
     });
   }
 
-  function rejectWord(method: "tap" | "drag" = "tap") {
+  function rejectWord(method: "tap" | "drag" = "tap", direction = 1) {
     if (phase === "truth") return;
+
+    const word = wrongWordRef.current;
+    const compact = window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+    const throwX = compact ? 22 : 42;
+    const throwY = compact ? 6 : 12;
+    word?.style.setProperty("--throw-x", `${direction * throwX}vw`);
+    word?.style.setProperty("--throw-y", `${(step % 2 === 0 ? -1 : 1) * throwY}vh`);
 
     trackAssumptionRejected(step, revision.wrong, method);
     setDragging(false);
-    clearDragStyles();
     scrollToChapterProgress(step, REWRITE_END + 0.08);
   }
 
@@ -327,7 +337,7 @@ export default function Home() {
 
     if (travelled > 58) {
       ignoreNextClick.current = true;
-      rejectWord("drag");
+      rejectWord("drag", x < 0 ? -1 : 1);
       return;
     }
 
@@ -339,7 +349,7 @@ export default function Home() {
       ignoreNextClick.current = false;
       return;
     }
-    rejectWord();
+    rejectWord("tap", step % 2 === 0 ? 1 : -1);
   }
 
   function cancelDrag() {
@@ -357,7 +367,7 @@ export default function Home() {
   return (
     <main
       ref={fieldRef}
-      className={`mind phase-${phase} step-${step}`}
+      className={`mind phase-${phase} step-${step} scroll-${scrollDirection}`}
       onPointerMove={updatePointer}
       style={
         {
@@ -476,7 +486,8 @@ export default function Home() {
                     if (event.key === "Escape") cancelDrag();
                   }}
                 >
-                  {revision.wrong}
+                  <span className="wrong-word-text">{revision.wrong}</span>
+                  <span className="wrong-stroke" aria-hidden="true" />
                   <i aria-hidden="true">revise</i>
                 </button>
                 <span aria-hidden="true">{revision.suffix}</span>
@@ -514,24 +525,37 @@ export default function Home() {
               )}
 
               {revision.kind === "artifacts" && (
-                <div className="artifact-footnotes" aria-label="Research evidence">
-                  <button
-                    type="button"
-                    onClick={() => setArtifact("krekib")}
-                    aria-label="Open Krekib lab evidence"
-                  >
-                    <span aria-hidden="true">*01</span> Krekib{" "}
-                    <em aria-hidden="true">researching</em>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setArtifact("cejour")}
-                    aria-label="Open CeJour lab evidence"
-                  >
-                    <span aria-hidden="true">*02</span> CeJour{" "}
-                    <em aria-hidden="true">producing</em>
-                  </button>
-                </div>
+                <ul className="project-models" aria-label="Lab projects">
+                  {(Object.keys(artifacts) as ArtifactKey[]).map((key) => {
+                    const project = artifacts[key];
+                    return (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          className="project-model"
+                          onClick={() => setArtifact(key)}
+                          aria-label={`Open ${project.name} project details`}
+                        >
+                          <span className="project-model-index" aria-hidden="true">
+                            {project.index}
+                          </span>
+                          <span className="project-model-body">
+                            <span className="project-model-topline">
+                              <strong>{project.name}</strong>
+                              <em>{project.status}</em>
+                            </span>
+                            <span className="project-model-role">{project.role}</span>
+                            <span className="project-model-host">{project.host}</span>
+                          </span>
+                          <span className="project-model-action" aria-hidden="true">
+                            Open
+                            <span>↗</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
 
               {revision.kind === "outcome" && (
@@ -627,20 +651,25 @@ export default function Home() {
         {artifact && (
           <div className="artifact-sheet">
             <div className="artifact-sheet-head">
-              <span>Lab evidence / {artifacts[artifact].index}</span>
+              <span>Lab project / {artifacts[artifact].index}</span>
               <button
                 type="button"
                 onClick={() => dialogRef.current?.close()}
-                aria-label="Close evidence"
+                aria-label="Close project details"
               >
-                Close evidence <span aria-hidden="true">×</span>
+                Close <span aria-hidden="true">×</span>
               </button>
             </div>
-            <p className="artifact-status" id="artifact-status">
-              {artifacts[artifact].status}
-            </p>
-            <h2 id="artifact-title">{artifacts[artifact].name}</h2>
-            <dl>
+
+            <div className="artifact-sheet-intro">
+              <p className="artifact-status" id="artifact-status">
+                {artifacts[artifact].status}
+              </p>
+              <h2 id="artifact-title">{artifacts[artifact].name}</h2>
+              <p className="artifact-role">{artifacts[artifact].role}</p>
+            </div>
+
+            <dl className="artifact-facts">
               <div>
                 <dt>Question</dt>
                 <dd>{artifacts[artifact].question}</dd>
@@ -654,17 +683,27 @@ export default function Home() {
                 <dd>{artifacts[artifact].finding}</dd>
               </div>
             </dl>
-            <a
-              className="artifact-project-link"
-              href={artifacts[artifact].url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() =>
-                trackProjectLinkClicked(artifacts[artifact].name, artifacts[artifact].host)
-              }
-            >
-              Visit {artifacts[artifact].host} <span aria-hidden="true">↗</span>
-            </a>
+
+            <div className="artifact-sheet-footer">
+              <a
+                className="artifact-project-link"
+                href={artifacts[artifact].url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() =>
+                  trackProjectLinkClicked(artifacts[artifact].name, artifacts[artifact].host)
+                }
+              >
+                Visit {artifacts[artifact].host} <span aria-hidden="true">↗</span>
+              </a>
+              <button
+                type="button"
+                className="artifact-dismiss"
+                onClick={() => dialogRef.current?.close()}
+              >
+                Stay with the work
+              </button>
+            </div>
           </div>
         )}
       </dialog>
