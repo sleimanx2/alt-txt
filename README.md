@@ -1,14 +1,15 @@
-# Alt-TXT — The Work Leaves a Trace
+# Alt-TXT — The Site That Changes Its Mind
 
-Alt-TXT’s digital presence is a living field of questions, experiments, observations, and systems. It is intentionally structured as an evolving knowledge current rather than a conventional company homepage.
+Alt-TXT’s digital presence behaves like a living editorial manuscript rather than a conventional company homepage. Visitors remove bad assumptions, watch the language rebuild itself, and discover the company’s philosophy through action.
 
 ## Experience
 
-- A seven-stage current connects questions to deployments and back to new questions.
-- The active trace changes automatically and can be explored with pointer or keyboard input.
-- Krekib and CeJour appear as active research artifacts rather than portfolio case studies.
-- The layout becomes a staggered vertical current on smaller screens.
-- Motion is restrained and removed when the visitor prefers reduced motion.
+- Wrong words are tactile controls that can be dragged, tapped, or activated by keyboard.
+- Each correction earns one layer of the Alt-TXT manifesto instead of presenting everything upfront.
+- Rejected assumptions accumulate visibly in the margin as a history of thought.
+- Krekib and CeJour appear as evidence sheets inside the revision journey—not portfolio cards.
+- The closing problem prompt turns the visitor’s own unresolved work into the final trace.
+- The single-screen composition reflows for mobile and honors reduced-motion preferences.
 
 ## Local development
 
@@ -17,12 +18,10 @@ npm install
 npm run dev
 ```
 
-The local preview is available at `http://localhost:3000`.
-
 ## Validation
 
 ```bash
 npm test
 ```
 
-This runs the production build and verifies the rendered experience, metadata, interaction contract, accessibility states, and starter cleanup.
+This runs the production build and verifies the rendered opening, correction journey, interaction contracts, responsive system, and starter cleanup.
