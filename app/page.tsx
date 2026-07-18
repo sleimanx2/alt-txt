@@ -78,6 +78,32 @@ const revisions = [
   },
 ] as const;
 
+const artifacts = {
+  krekib: {
+    index: "01",
+    name: "Krekib",
+    status: "researching / live",
+    url: "https://krekib.com",
+    host: "krekib.com",
+    question: "Can buying advice reward craft instead of whoever shouts loudest?",
+    experiment:
+      "Agents compare thousands of sources. Human judgment decides what deserves weight.",
+    finding: "More information is useless until someone decides what matters.",
+  },
+  cejour: {
+    index: "02",
+    name: "CeJour",
+    status: "producing / live",
+    url: "https://cejour.la",
+    host: "cejour.la",
+    question: "Can a brand keep moving without consuming the people who give it taste?",
+    experiment:
+      "A quiet system writes, composes, and publishes. Humans keep the consequential decisions.",
+    finding: "Automation matters most when it protects human attention.",
+  },
+} as const;
+
+type ArtifactKey = keyof typeof artifacts;
 type Phase = "assumption" | "correcting" | "truth";
 type DiscardedWord = { word: string; residue: string; step: number };
 
@@ -105,11 +131,13 @@ export default function Home() {
   const [phase, setPhase] = useState<Phase>("assumption");
   const [scrollDirection, setScrollDirection] = useState<"forward" | "backward">("forward");
   const [dragging, setDragging] = useState(false);
+  const [artifact, setArtifact] = useState<ArtifactKey | null>(null);
   const [problem, setProblem] = useState("");
 
   const fieldRef = useRef<HTMLElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const wrongWordRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const ignoreNextClick = useRef(false);
   const reduceMotion = useRef(false);
@@ -143,6 +171,14 @@ export default function Home() {
   useEffect(() => {
     reduceMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }, []);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (artifact && !dialog.open) dialog.showModal();
+    if (!artifact && dialog.open) dialog.close();
+  }, [artifact]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -455,25 +491,23 @@ export default function Home() {
               )}
 
               {revision.kind === "artifacts" && (
-                <div className="artifact-footnotes" aria-label="Live evidence">
-                  <a
-                    href="https://krekib.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Visit Krekib at krekib.com"
+                <div className="artifact-footnotes" aria-label="Research evidence">
+                  <button
+                    type="button"
+                    onClick={() => setArtifact("krekib")}
+                    aria-label="Open Krekib lab evidence"
                   >
                     <span aria-hidden="true">*01</span> Krekib{" "}
-                    <em aria-hidden="true">krekib.com</em>
-                  </a>
-                  <a
-                    href="https://cejour.la"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Visit CeJour at cejour.la"
+                    <em aria-hidden="true">researching</em>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArtifact("cejour")}
+                    aria-label="Open CeJour lab evidence"
                   >
                     <span aria-hidden="true">*02</span> CeJour{" "}
-                    <em aria-hidden="true">cejour.la</em>
-                  </a>
+                    <em aria-hidden="true">producing</em>
+                  </button>
                 </div>
               )}
 
@@ -558,6 +592,55 @@ export default function Home() {
         <span>Technology is the easy part.</span>
         <span>Finding the right problem is the work.</span>
       </div>
+
+      <dialog
+        ref={dialogRef}
+        className="artifact-dialog"
+        onClose={() => setArtifact(null)}
+        aria-labelledby="artifact-title"
+        aria-describedby="artifact-status"
+      >
+        {artifact && (
+          <div className="artifact-sheet">
+            <div className="artifact-sheet-head">
+              <span>Lab evidence / {artifacts[artifact].index}</span>
+              <button
+                type="button"
+                onClick={() => dialogRef.current?.close()}
+                aria-label="Close evidence"
+              >
+                Close evidence <span aria-hidden="true">×</span>
+              </button>
+            </div>
+            <p className="artifact-status" id="artifact-status">
+              {artifacts[artifact].status}
+            </p>
+            <h2 id="artifact-title">{artifacts[artifact].name}</h2>
+            <dl>
+              <div>
+                <dt>Question</dt>
+                <dd>{artifacts[artifact].question}</dd>
+              </div>
+              <div>
+                <dt>Experiment</dt>
+                <dd>{artifacts[artifact].experiment}</dd>
+              </div>
+              <div>
+                <dt>Trace left behind</dt>
+                <dd>{artifacts[artifact].finding}</dd>
+              </div>
+            </dl>
+            <a
+              className="artifact-project-link"
+              href={artifacts[artifact].url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Visit {artifacts[artifact].host} <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        )}
+      </dialog>
     </main>
   );
 }
