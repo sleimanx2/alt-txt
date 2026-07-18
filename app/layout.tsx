@@ -5,17 +5,25 @@ import "./globals.css";
 
 const fallbackOrigin = "https://alt-txt.com";
 
+const siteName = "Alt-TXT";
+const defaultTitle = "Alt-TXT — Better ways of working";
+const defaultDescription =
+  "Alt-TXT is an intelligence lab that removes bad assumptions, finds leverage, and redesigns how companies work with AI and specialized agents.";
+const ogDescription = "We don’t sell AI. We sell better ways of working.";
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
   themeColor: "#e8e6e1",
+  colorScheme: "light",
 };
 
 const display = IBM_Plex_Sans({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const serif = Newsreader({
@@ -23,15 +31,17 @@ const serif = Newsreader({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   style: ["normal", "italic"],
+  display: "swap",
 });
 
 const body = Source_Serif_4({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  display: "swap",
 });
 
-export async function generateMetadata(): Promise<Metadata> {
+async function resolveOrigin() {
   const requestHeaders = await headers();
   const forwardedHost = requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost ?? requestHeaders.get("host");
@@ -43,57 +53,164 @@ export async function generateMetadata(): Promise<Metadata> {
         ? "http"
         : "https";
 
-  let origin = fallbackOrigin;
-  if (host) {
-    try {
-      origin = new URL(`${protocol}://${host}`).origin;
-    } catch {
-      // Keep a stable canonical origin when a proxy sends a malformed host.
-    }
-  }
+  if (!host) return fallbackOrigin;
 
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return fallbackOrigin;
+  }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const origin = await resolveOrigin();
   const socialImage = new URL("/og.png", origin).toString();
 
   return {
     metadataBase: new URL(origin),
-    title: "Alt-TXT — Better ways of working",
-    description:
-      "Alt-TXT is an intelligence lab that removes bad assumptions, finds leverage, and redesigns how companies work.",
-    applicationName: "Alt-TXT",
+    title: {
+      default: defaultTitle,
+      template: `%s — ${siteName}`,
+    },
+    description: defaultDescription,
+    applicationName: siteName,
+    authors: [{ name: siteName, url: fallbackOrigin }],
+    creator: siteName,
+    publisher: siteName,
+    category: "business",
+    keywords: [
+      "Alt-TXT",
+      "intelligence lab",
+      "ways of working",
+      "AI agents",
+      "business transformation",
+      "human judgment",
+      "operations",
+    ],
+    alternates: {
+      canonical: "/",
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
+    },
+    icons: {
+      icon: [
+        { url: "/favicon.ico", sizes: "any" },
+        { url: "/icon.svg", type: "image/svg+xml" },
+      ],
+      apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
     openGraph: {
-      title: "Alt-TXT — Better ways of working",
-      description: "We don’t sell AI. We sell better ways of working.",
+      title: defaultTitle,
+      description: ogDescription,
       type: "website",
-      siteName: "Alt-TXT",
+      locale: "en_US",
+      url: origin,
+      siteName,
       images: [
         {
           url: socialImage,
           width: 1200,
           height: 630,
           alt: "We sell AI, corrected to: We sell better ways of working.",
+          type: "image/png",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: "Alt-TXT — Better ways of working",
-      description: "We don’t sell AI. We sell better ways of working.",
-      images: [socialImage],
+      title: defaultTitle,
+      description: ogDescription,
+      images: [
+        {
+          url: socialImage,
+          alt: "We sell AI, corrected to: We sell better ways of working.",
+        },
+      ],
+    },
+    other: {
+      "theme-color": "#e8e6e1",
     },
   };
 }
 
-export default function RootLayout({
+function JsonLd({ origin }: { origin: string }) {
+  const graph = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${fallbackOrigin}/#organization`,
+        name: siteName,
+        alternateName: "ALT—TXT",
+        url: fallbackOrigin,
+        email: "hello@alt-txt.com",
+        description: defaultDescription,
+        logo: `${fallbackOrigin}/apple-touch-icon.png`,
+        sameAs: ["https://krekib.com", "https://cejour.la"],
+        contactPoint: [
+          {
+            "@type": "ContactPoint",
+            email: "hello@alt-txt.com",
+            contactType: "sales",
+            availableLanguage: ["English"],
+          },
+        ],
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${fallbackOrigin}/#website`,
+        url: fallbackOrigin,
+        name: siteName,
+        description: ogDescription,
+        publisher: { "@id": `${fallbackOrigin}/#organization` },
+        inLanguage: "en",
+      },
+      {
+        "@type": "WebPage",
+        "@id": `${origin}/#webpage`,
+        url: origin,
+        name: defaultTitle,
+        isPartOf: { "@id": `${fallbackOrigin}/#website` },
+        about: { "@id": `${fallbackOrigin}/#organization` },
+        description: defaultDescription,
+        inLanguage: "en",
+      },
+    ],
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(graph) }}
+    />
+  );
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const origin = await resolveOrigin();
+
   return (
     <html
       lang="en"
       className={`${display.variable} ${serif.variable} ${body.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <JsonLd origin={origin} />
+        {children}
+      </body>
     </html>
   );
 }
