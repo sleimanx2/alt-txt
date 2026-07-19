@@ -35,6 +35,29 @@ const principles = [
   },
 ] as const;
 
+const processSteps = [
+  {
+    index: "01",
+    title: "Find the friction",
+    detail: "A constraint, handoff, or repeated decision.",
+  },
+  {
+    index: "02",
+    title: "Redesign the system",
+    detail: "Clarify the rules, roles, and flow of work.",
+  },
+  {
+    index: "03",
+    title: "Assign the judgment",
+    detail: "Agents repeat. People make the consequential calls.",
+  },
+  {
+    index: "04",
+    title: "Measure the outcome",
+    detail: "Track time returned, quality, and margin created.",
+  },
+] as const;
+
 const artifacts = {
   krekib: {
     index: "01",
@@ -180,8 +203,7 @@ export default function Home() {
             </p>
             <h1 className="hero-title">We sell better ways of working.</h1>
             <p className="hero-support">
-              We redesign the decisions, handoffs, and repetitive work that slow a company
-              down. Then we use AI where it earns its place.
+              We redesign slow decisions and handoffs—then use AI where it earns its place.
             </p>
             <div className="hero-actions">
               <a
@@ -196,17 +218,39 @@ export default function Home() {
                 href="#manifesto"
                 onClick={() => trackCtaClicked("hero_secondary")}
               >
-                Read the manifesto
+                Read the manifesto <span aria-hidden="true">↓</span>
               </a>
             </div>
           </div>
         </section>
 
+        <section className="work-system" aria-labelledby="work-system-title">
+          <div className="work-system-inner">
+            <div className="work-system-heading" data-reveal>
+              <p className="section-kicker">How the work changes</p>
+              <h2 id="work-system-title">Turn friction into measurable progress.</h2>
+            </div>
+            <ol className="system-flow">
+              {processSteps.map((step) => (
+                <li key={step.index} data-reveal>
+                  <span className="system-index" aria-hidden="true">
+                    {step.index}
+                  </span>
+                  <span className="system-step-copy">
+                    <strong>{step.title}</strong>
+                    <span>{step.detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
         <section
-        className="section manifesto"
-        id="manifesto"
-        aria-labelledby="manifesto-title"
-      >
+          className="section manifesto"
+          id="manifesto"
+          aria-labelledby="manifesto-title"
+        >
           <span className="manifesto-mark" aria-hidden="true">
             REVISE
           </span>
@@ -219,7 +263,7 @@ export default function Home() {
             </p>
           </div>
 
-          <ol className="principle-list">
+          <ol className="principle-list principle-list-desktop">
             {principles.map((item) => (
               <li key={item.index} data-reveal>
                 <span className="principle-index" aria-hidden="true">
@@ -235,6 +279,30 @@ export default function Home() {
                   <h3>{item.title}</h3>
                   <p>{item.body}</p>
                 </div>
+              </li>
+            ))}
+          </ol>
+
+          <ol className="principle-list principle-list-mobile">
+            {principles.map((item) => (
+              <li key={item.index}>
+                <details data-reveal>
+                  <summary>
+                    <span className="principle-index" aria-hidden="true">
+                      {item.index}
+                    </span>
+                    <span className="principle-mobile-head">
+                      <span className="principle-assumption">
+                        <del>{item.assumption}</del>
+                      </span>
+                      <strong>{item.title}</strong>
+                    </span>
+                    <span className="principle-toggle" aria-hidden="true">
+                      +
+                    </span>
+                  </summary>
+                  <p>{item.body}</p>
+                </details>
               </li>
             ))}
           </ol>
@@ -260,23 +328,75 @@ export default function Home() {
                 <li key={key} data-reveal>
                   <button
                     type="button"
-                    className="project-row"
+                    className="project-card"
                     onClick={() => setArtifact(key)}
                     aria-label={`Read the ${project.name} experiment trace`}
                   >
-                    <span className="project-index" aria-hidden="true">
-                      {project.index}
+                    <span
+                      className={`project-visual project-visual-${key}`}
+                      aria-hidden="true"
+                    >
+                      {key === "krekib" ? (
+                        <>
+                          <span className="visual-head">
+                            <span>Source matrix</span>
+                            <span>1,284 signals</span>
+                          </span>
+                          <span className="signal-stack">
+                            <span>
+                              <em>Craft</em>
+                              <i />
+                              <b>82</b>
+                            </span>
+                            <span>
+                              <em>Evidence</em>
+                              <i />
+                              <b>71</b>
+                            </span>
+                            <span>
+                              <em>Noise</em>
+                              <i />
+                              <b>19</b>
+                            </span>
+                          </span>
+                          <span className="visual-note">Judgment applied / 01</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="visual-head">
+                            <span>Publishing queue</span>
+                            <span>Live</span>
+                          </span>
+                          <span className="quiet-pipeline">
+                            <span>
+                              <i />
+                              <b>Draft</b>
+                              <em>09:00</em>
+                            </span>
+                            <span>
+                              <i />
+                              <b>Compose</b>
+                              <em>11:30</em>
+                            </span>
+                            <span>
+                              <i />
+                              <b>Publish</b>
+                              <em>14:00</em>
+                            </span>
+                          </span>
+                          <span className="visual-note">Human approval held / 02</span>
+                        </>
+                      )}
                     </span>
-                    <span className="project-body">
-                      <strong className="project-finding">{project.finding}</strong>
+                    <span className="project-card-copy">
                       <span className="project-meta">
                         <strong>{project.name}</strong>
                         <em>{project.status}</em>
                       </span>
-                      <span className="project-question">{project.question}</span>
-                    </span>
-                    <span className="project-action" aria-hidden="true">
-                      Read the trace <span>↗</span>
+                      <strong className="project-finding">{project.finding}</strong>
+                      <span className="project-action" aria-hidden="true">
+                        Read the trace <span>↗</span>
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -286,37 +406,40 @@ export default function Home() {
         </section>
 
         <section className="section question" id="question" aria-labelledby="question-title">
-          <div className="section-intro" data-reveal>
-            <p className="section-kicker">One unresolved thing / 05</p>
-            <h2 id="question-title">Bring us the question before it becomes a brief.</h2>
-            <p className="section-support">
-              A constraint, a broken handoff, a decision that keeps repeating—messy is useful.
-            </p>
-          </div>
+          <div className="question-layout">
+            <div className="question-copy" data-reveal>
+              <p className="section-kicker">One unresolved thing / 05</p>
+              <h2 id="question-title">What feels harder than it should?</h2>
+              <p>
+                Bring us the question before it becomes a brief.
+              </p>
+            </div>
 
-          <div className="problem-trace" data-reveal>
-            <label htmlFor="unresolved-problem">
-              The part of our business that feels harder than it should is…
-            </label>
-            <textarea
-              id="unresolved-problem"
-              name="unresolved-problem"
-              autoComplete="off"
-              spellCheck
-              rows={3}
-              value={problem}
-              onChange={(event) => setProblem(event.target.value)}
-              placeholder="The handoff between sales and operations keeps…"
-            />
-            <div className="problem-actions">
-              <small id="problem-hint">No deck. No polished brief. 2 sentences are enough.</small>
-              <a
-                href={mailto}
+            <div className="problem-trace" data-reveal>
+              <label className="sr-only" htmlFor="unresolved-problem">
+                The part of your business that feels harder than it should
+              </label>
+              <textarea
+                id="unresolved-problem"
+                name="unresolved-problem"
+                autoComplete="off"
+                spellCheck
+                rows={4}
+                value={problem}
+                onChange={(event) => setProblem(event.target.value)}
+                placeholder="The handoff between sales and operations keeps…"
                 aria-describedby="problem-hint"
-                onClick={() => trackContactIntent(problem.trim().length > 0)}
-              >
-                Open email draft <span aria-hidden="true">↗</span>
-              </a>
+              />
+              <div className="problem-actions">
+                <small id="problem-hint">No deck. 2 sentences are enough.</small>
+                <a
+                  href={mailto}
+                  aria-describedby="problem-hint"
+                  onClick={() => trackContactIntent(problem.trim().length > 0)}
+                >
+                  Open email draft <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </div>
           </div>
         </section>
