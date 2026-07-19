@@ -12,7 +12,7 @@ const principles = [
   {
     index: "01",
     assumption: "We sell AI.",
-    title: "We sell better ways of working.",
+    title: "We redesign how work gets done.",
     body: "AI is today’s best tool. It still has to earn its place in the system.",
   },
   {
@@ -201,9 +201,10 @@ export default function Home() {
             <p className="hero-premise">
               <del>We sell AI.</del>
             </p>
-            <h1 className="hero-title">We sell better ways of working.</h1>
+            <h1 className="hero-title">We redesign how work gets done.</h1>
             <p className="hero-support">
-              We redesign slow decisions and handoffs—then use AI where it earns its place.
+              Together, we find the decisions and handoffs slowing you down. Then we use AI
+              where it earns its place.
             </p>
             <div className="hero-actions">
               <a
@@ -258,8 +259,9 @@ export default function Home() {
             <p className="section-kicker">A working manifesto</p>
             <h2 id="manifesto-title">Question the assumption. Keep what matters.</h2>
             <p className="section-support">
-              Most AI projects start with an answer already chosen. We step back, find the real
-              problem, then design the right system.
+              Most AI projects start with an answer already chosen. We start with the people
+              closest to the work, find the friction together, then design a system around what
+              matters.
             </p>
           </div>
 

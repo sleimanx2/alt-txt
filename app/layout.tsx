@@ -7,11 +7,11 @@ import "./globals.css";
 const fallbackOrigin = "https://alt-txt.com";
 
 const siteName = "Alt-TXT";
-const defaultTitle = "Alt-TXT — Better ways of working";
+const defaultTitle = "Alt-TXT | Redesigning how work gets done";
 const defaultDescription =
-  "Alt-TXT is an intelligence lab that redesigns how companies work — finding leverage, protecting judgment, and building systems where AI is the tool, not the pitch.";
+  "Alt-TXT is an intelligence lab that redesigns how companies work: finding leverage, protecting judgment, and building systems where AI is the tool, not the pitch.";
 const ogDescription =
-  "We sell better ways of working. AI is today’s best tool—not the pitch.";
+  "We redesign how work gets done. AI is today’s best tool, not the pitch.";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -72,7 +72,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(origin),
     title: {
       default: defaultTitle,
-      template: `%s — ${siteName}`,
+      template: `%s | ${siteName}`,
     },
     description: defaultDescription,
     applicationName: siteName,
@@ -122,7 +122,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: socialImage,
           width: 1200,
           height: 630,
-          alt: "Alt-TXT proof sheet: We sell better ways of working, not AI.",
+          alt: "Alt-TXT proof sheet: We redesign how work gets done.",
           type: "image/png",
         },
       ],
@@ -134,12 +134,9 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [
         {
           url: socialImage,
-          alt: "Alt-TXT proof sheet: We sell better ways of working, not AI.",
+          alt: "Alt-TXT proof sheet: We redesign how work gets done.",
         },
       ],
-    },
-    other: {
-      "theme-color": "#e8e6e1",
     },
   };
 }
