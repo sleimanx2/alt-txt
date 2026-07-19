@@ -302,7 +302,6 @@ textarea:focus-visible {
 
 .hero-title {
   margin: 0;
-  position: relative;
   width: fit-content;
   max-width: 14ch;
   font-family: var(--serif);
@@ -313,7 +312,13 @@ textarea:focus-visible {
   text-wrap: balance;
 }
 
-.hero-title::after {
+.hero-title-mark {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.hero-title-mark::after {
   content: "";
   position: absolute;
   left: 0;
@@ -1225,8 +1230,9 @@ textarea:focus-visible {
   }
 
   .button-secondary {
-    flex: 0 0 auto;
-    justify-content: flex-start;
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: center;
     min-height: var(--touch);
     padding: 8px 0;
     border: 0;

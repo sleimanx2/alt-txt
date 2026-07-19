@@ -188,7 +188,7 @@ export default function Home() {
           href="#question"
           onClick={() => trackCtaClicked("header")}
         >
-          Bring us a hard thing <span aria-hidden="true">↗</span>
+          What’s slowing you down? <span aria-hidden="true">↗</span>
         </a>
       </header>
 
@@ -201,7 +201,9 @@ export default function Home() {
             <p className="hero-premise">
               <del>We sell AI.</del>
             </p>
-            <h1 className="hero-title">We redesign how work gets done.</h1>
+            <h1 className="hero-title">
+              We redesign how <span className="hero-title-mark">work gets done.</span>
+            </h1>
             <p className="hero-support">
               Together, we find the decisions and handoffs slowing you down. Then we use AI
               where it earns its place.
@@ -212,7 +214,7 @@ export default function Home() {
                 href="#question"
                 onClick={() => trackCtaClicked("hero_primary")}
               >
-                Bring us a hard thing
+                Tell us what’s slowing you down
               </a>
               <a
                 className="button-secondary"
