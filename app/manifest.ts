@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Alt-TXT",
     short_name: "Alt-TXT",
     description:
-      "An intelligence lab that removes bad assumptions, finds leverage, and redesigns how companies work.",
+      "An intelligence lab that redesigns how companies work — AI is the tool, not the pitch.",
     start_url: "/",
     display: "standalone",
     background_color: "#e8e6e1",

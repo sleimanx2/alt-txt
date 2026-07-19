@@ -1,88 +1,37 @@
 "use client";
 
-import {
-  type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   trackArtifactOpened,
-  trackAssumptionRejected,
   trackContactIntent,
-  trackJumpToQuestion,
+  trackCtaClicked,
   trackProjectLinkClicked,
-  trackRevisionReached,
 } from "./lib/analytics";
 
-const revisions = [
+const principles = [
   {
-    prefix: "WE SELL ",
-    wrong: "AI",
-    suffix: ".",
-    truth: "WE SELL BETTER WAYS OF WORKING.",
-    annotation: "The premise arrived too early.",
-    proof: "Better. Now we can begin.",
-    evidence: "AI just happens to be today’s best tool.",
-    residue: "tool / not premise",
-    kind: "origin",
+    index: "01",
+    assumption: "We sell AI.",
+    title: "We sell better ways of working.",
+    body: "AI is today’s best tool. It still has to earn its place in the system.",
   },
   {
-    prefix: "START WITH THE ",
-    wrong: "STACK",
-    suffix: ".",
-    truth: "START WITH THE BUSINESS.",
-    annotation: "Tools are answers. We are not there yet.",
-    proof: "Better. Now ask why.",
-    evidence: "Implementation is no longer the bottleneck. Understanding is.",
-    residue: "answer / before question",
-    kind: "question",
+    index: "02",
+    assumption: "Start with the stack.",
+    title: "Start with the business.",
+    body: "Tools are answers. We begin with the constraint, handoff, or decision that keeps slowing you down.",
   },
   {
-    prefix: "AUTOMATE ",
-    wrong: "EVERYTHING",
-    suffix: ".",
-    truth: "PROTECT HUMAN JUDGMENT.",
-    annotation: "Efficiency without judgment scales the wrong thing.",
-    proof: "Better. Keep what needs judgment.",
-    evidence: "2–5 humans decide. Specialized agents do the repetition.",
-    residue: "volume / without value",
-    kind: "swarm",
+    index: "03",
+    assumption: "Automate everything.",
+    title: "Protect human judgment.",
+    body: "Specialized agents handle the repetition. A few people keep the consequential calls.",
   },
   {
-    prefix: "SHOW THE ",
-    wrong: "PORTFOLIO",
-    suffix: ".",
-    truth: "SHOW WHAT THE WORK TAUGHT US.",
-    annotation: "Evidence is more useful than applause.",
-    proof: "Better. Show the trace.",
-    evidence: "Experiments leave traces. The traces improve the next decision.",
-    residue: "display / without discovery",
-    kind: "artifacts",
-  },
-  {
-    prefix: "BILL THE ",
-    wrong: "HOURS",
-    suffix: ".",
-    truth: "OWN THE OUTCOME.",
-    annotation: "Activity is easy to count. Change is harder to fake.",
-    proof: "Better. Measure the change.",
-    evidence: "If the work creates no measurable value, we missed the point.",
-    residue: "activity / mistaken for progress",
-    kind: "outcome",
-  },
-  {
-    prefix: "SEND US A ",
-    wrong: "BRIEF",
-    suffix: ".",
-    truth: "BRING US THE QUESTION.",
-    annotation: "The useful version is usually still messy.",
-    proof: "Better. That is enough to start.",
-    evidence: "There is room here for one more unresolved thing.",
-    residue: "certainty / too soon",
-    kind: "invitation",
+    index: "04",
+    assumption: "Bill the hours.",
+    title: "Own the outcome.",
+    body: "Hours returned, decisions improved, margin created. Shipping alone is not proof.",
   },
 ] as const;
 
@@ -90,7 +39,7 @@ const artifacts = {
   krekib: {
     index: "01",
     name: "Krekib",
-    status: "researching / live",
+    status: "live / researching",
     role: "Buying guides that reward craft over noise",
     url: "https://krekib.com",
     host: "krekib.com",
@@ -102,7 +51,7 @@ const artifacts = {
   cejour: {
     index: "02",
     name: "CeJour",
-    status: "producing / live",
+    status: "live / producing",
     role: "Quiet systems that keep a brand moving",
     url: "https://cejour.la",
     host: "cejour.la",
@@ -114,95 +63,19 @@ const artifacts = {
 } as const;
 
 type ArtifactKey = keyof typeof artifacts;
-type Phase = "assumption" | "correcting" | "truth";
-type DiscardedWord = { word: string; residue: string; step: number };
-
-const DESKTOP_CURVE = { start: 0.2, end: 0.62, truthRest: 0.72 };
-const MOBILE_CURVE = { start: 0.1, end: 0.48, truthRest: 0.64 };
-
-function clamp(value: number, min = 0, max = 1) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function rewriteFromLocal(local: number, start: number, end: number) {
-  const linear = clamp((local - start) / (end - start));
-  // Smoothstep so the correction accelerates through the middle of the scroll.
-  return linear * linear * (3 - 2 * linear);
-}
-
-function isCompactViewport() {
-  return window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
-}
-
-function phaseFromRewrite(rewrite: number): Phase {
-  if (rewrite < 0.18) return "assumption";
-  if (rewrite < 0.82) return "correcting";
-  return "truth";
-}
 
 export default function Home() {
-  const [step, setStep] = useState(0);
-  const [phase, setPhase] = useState<Phase>("assumption");
-  const [scrollDirection, setScrollDirection] = useState<"forward" | "backward">("forward");
-  const [dragging, setDragging] = useState(false);
   const [artifact, setArtifact] = useState<ArtifactKey | null>(null);
   const [problem, setProblem] = useState("");
-
-  const fieldRef = useRef<HTMLElement>(null);
-  const flowRef = useRef<HTMLDivElement>(null);
-  const wrongWordRef = useRef<HTMLButtonElement>(null);
+  const [showHeader, setShowHeader] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const dragStart = useRef<{ x: number; y: number } | null>(null);
-  const ignoreNextClick = useRef(false);
-  const reduceMotion = useRef(false);
-  const stepRef = useRef(0);
-  const phaseRef = useRef<Phase>("assumption");
-  const rewriteRef = useRef(0);
-  const localRef = useRef(0);
-  const scrollRaf = useRef(0);
-  const settleTimer = useRef(0);
-  const settling = useRef(false);
-  const curveRef = useRef({ ...DESKTOP_CURVE, compact: false });
-  const trackedAssumptions = useRef(new Set<number>());
-  const trackedTruths = useRef(new Set<number>());
+  const heroRef = useRef<HTMLElement>(null);
 
-  const revision = revisions[step];
-  const progress = `${String(step + 1).padStart(2, "0")} / ${String(revisions.length).padStart(2, "0")}`;
-  const resolvedCount = phase === "truth" ? step + 1 : step;
-  const discarded: DiscardedWord[] = revisions.slice(0, resolvedCount).map((item, index) => ({
-    word: item.wrong,
-    residue: item.residue,
-    step: index,
-  }));
-  const statusAnnouncement =
-    phase === "truth"
-      ? `Revision ${progress} corrected. ${revision.truth} ${revision.evidence}`
-      : phase === "correcting"
-        ? `Revision ${progress} is being rewritten.`
-        : `Revision ${progress}. ${revision.prefix}${revision.wrong}${revision.suffix} ${revision.annotation}`;
-
-  const mailto = useMemo(() => {
-    const unresolved = problem.trim() || "The part of our business that feels harder than it should is…";
-    return `mailto:hello@alt-txt.com?subject=${encodeURIComponent(
-      "An unresolved question",
-    )}&body=${encodeURIComponent(unresolved)}`;
-  }, [problem]);
-
-  useEffect(() => {
-    reduceMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  }, []);
-
-  useEffect(() => {
-    if (trackedAssumptions.current.has(step)) return;
-    trackedAssumptions.current.add(step);
-    trackRevisionReached(step, "assumption");
-  }, [step]);
-
-  useEffect(() => {
-    if (phase !== "truth" || trackedTruths.current.has(step)) return;
-    trackedTruths.current.add(step);
-    trackRevisionReached(step, "truth");
-  }, [phase, step]);
+  const unresolved =
+    problem.trim() || "The part of our business that feels harder than it should is…";
+  const mailto = `mailto:hello@alt-txt.com?subject=${encodeURIComponent(
+    "An unresolved question",
+  )}&body=${encodeURIComponent(unresolved)}`;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -216,478 +89,243 @@ export default function Home() {
   }, [artifact]);
 
   useEffect(() => {
-    const field = fieldRef.current;
-    const flow = flowRef.current;
-    if (!field || !flow) return;
+    const hero = heroRef.current;
+    if (!hero) return;
 
-    const readChapter = () => {
-      const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
-      const scrolled = clamp(-flow.getBoundingClientRect().top / total);
-      const chapterFloat = scrolled * revisions.length;
-      const nextStep = Math.min(Math.floor(chapterFloat), revisions.length - 1);
-      const local = clamp(chapterFloat - nextStep);
-      return { total, scrolled, nextStep, local };
-    };
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowHeader(!entry.isIntersecting),
+      { threshold: 0, rootMargin: "-72px 0px 0px 0px" },
+    );
 
-    const syncCurve = () => {
-      const compact = isCompactViewport();
-      curveRef.current = compact
-        ? { ...MOBILE_CURVE, compact: true }
-        : { ...DESKTOP_CURVE, compact: false };
-    };
-
-    const applyProgress = () => {
-      scrollRaf.current = 0;
-      syncCurve();
-
-      const { start, end } = curveRef.current;
-      const { scrolled, nextStep, local } = readChapter();
-      const rewrite = reduceMotion.current
-        ? local < 0.5
-          ? 0
-          : 1
-        : rewriteFromLocal(local, start, end);
-      const nextPhase = phaseFromRewrite(rewrite);
-
-      field.style.setProperty("--story-progress", scrolled.toFixed(4));
-      field.style.setProperty("--local-progress", local.toFixed(4));
-      field.style.setProperty("--rewrite", rewrite.toFixed(4));
-      field.style.setProperty("--tension", clamp(local / start).toFixed(4));
-      field.dataset.phase = nextPhase;
-
-      if (nextStep !== stepRef.current) {
-        setScrollDirection(nextStep > stepRef.current ? "forward" : "backward");
-        stepRef.current = nextStep;
-        setStep(nextStep);
-      }
-
-      if (nextPhase !== phaseRef.current) {
-        phaseRef.current = nextPhase;
-        setPhase(nextPhase);
-      }
-
-      localRef.current = local;
-      rewriteRef.current = rewrite;
-    };
-
-    const scrollToLocal = (targetStep: number, localProgress: number, smooth: boolean) => {
-      const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
-      const chapterSpan = total / revisions.length;
-      const top =
-        flow.offsetTop +
-        chapterSpan * (clamp(targetStep, 0, revisions.length - 1) + clamp(localProgress));
-
-      settling.current = true;
-      window.scrollTo({
-        top,
-        behavior: smooth && !reduceMotion.current ? "smooth" : "auto",
-      });
-      window.setTimeout(() => {
-        settling.current = false;
-      }, smooth ? 420 : 80);
-    };
-
-    const settleMobileScroll = () => {
-      if (settling.current || reduceMotion.current || !curveRef.current.compact) return;
-
-      const { start, end, truthRest } = curveRef.current;
-      const { nextStep, local } = readChapter();
-
-      // Only correct floaty mid-rewrite stops — leave settled assumption/truth alone.
-      if (local > start && local < end) {
-        scrollToLocal(nextStep, truthRest, true);
-        return;
-      }
-
-      // If a flick lands just short of the next chapter, park in truth rest.
-      if (local > end && local < 0.78 && Math.abs(local - truthRest) > 0.06) {
-        scrollToLocal(nextStep, truthRest, true);
-      }
-    };
-
-    const onScroll = () => {
-      if (scrollRaf.current) return;
-      scrollRaf.current = window.requestAnimationFrame(applyProgress);
-
-      if (!isCompactViewport()) return;
-      window.clearTimeout(settleTimer.current);
-      settleTimer.current = window.setTimeout(settleMobileScroll, 120);
-    };
-
-    const onScrollEnd = () => {
-      window.clearTimeout(settleTimer.current);
-      settleMobileScroll();
-    };
-
-    applyProgress();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("scrollend", onScrollEnd, { passive: true });
-    window.addEventListener("resize", onScroll);
-
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("scrollend", onScrollEnd);
-      window.removeEventListener("resize", onScroll);
-      window.clearTimeout(settleTimer.current);
-      if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
-    };
+    observer.observe(hero);
+    return () => observer.disconnect();
   }, []);
 
-  function updatePointer(event: ReactPointerEvent<HTMLElement>) {
-    const field = fieldRef.current;
-    if (!field) return;
-    field.style.setProperty("--pointer-x", `${event.clientX}px`);
-    field.style.setProperty("--pointer-y", `${event.clientY}px`);
-  }
+  useEffect(() => {
+    const nodes = document.querySelectorAll<HTMLElement>("[data-reveal]");
+    if (!nodes.length) return;
 
-  function clearDragStyles() {
-    const word = wrongWordRef.current;
-    if (!word) return;
-    word.style.setProperty("--drag-x", "0px");
-    word.style.setProperty("--drag-y", "0px");
-  }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      nodes.forEach((node) => node.classList.add("is-visible"));
+      return;
+    }
 
-  function scrollToChapterProgress(targetStep: number, localProgress: number) {
-    const flow = flowRef.current;
-    if (!flow) return;
-
-    const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
-    const chapterSpan = total / revisions.length;
-    const top =
-      flow.offsetTop +
-      chapterSpan * (clamp(targetStep, 0, revisions.length - 1) + clamp(localProgress));
-
-    window.scrollTo({
-      top,
-      behavior: reduceMotion.current ? "auto" : "smooth",
+    nodes.forEach((node) => {
+      if (node.getBoundingClientRect().top < window.innerHeight * 0.92) {
+        node.classList.add("is-visible");
+      } else {
+        node.classList.add("reveal-pending");
+      }
     });
-  }
 
-  function rejectWord(method: "tap" | "drag" = "tap", direction = 1) {
-    if (phase === "truth") return;
-
-    const word = wrongWordRef.current;
-    const compact = isCompactViewport();
-    const throwX = compact ? 22 : 42;
-    const throwY = compact ? 6 : 12;
-    word?.style.setProperty("--throw-x", `${direction * throwX}vw`);
-    word?.style.setProperty("--throw-y", `${(step % 2 === 0 ? -1 : 1) * throwY}vh`);
-
-    trackAssumptionRejected(step, revision.wrong, method);
-    setDragging(false);
-    scrollToChapterProgress(
-      step,
-      compact ? MOBILE_CURVE.truthRest : DESKTOP_CURVE.truthRest,
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.remove("reveal-pending");
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.18, rootMargin: "0px 0px -8% 0px" },
     );
-  }
 
-  function handleWordPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (phase === "truth") return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragStart.current = { x: event.clientX, y: event.clientY };
-    setDragging(true);
-  }
-
-  function handleWordPointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!dragStart.current || phase === "truth") return;
-    const x = event.clientX - dragStart.current.x;
-    const y = event.clientY - dragStart.current.y;
-    event.currentTarget.style.setProperty("--drag-x", `${x}px`);
-    event.currentTarget.style.setProperty("--drag-y", `${y}px`);
-  }
-
-  function handleWordPointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!dragStart.current || phase === "truth") return;
-    const x = event.clientX - dragStart.current.x;
-    const y = event.clientY - dragStart.current.y;
-    const travelled = Math.hypot(x, y);
-    dragStart.current = null;
-    setDragging(false);
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    if (travelled > 58) {
-      ignoreNextClick.current = true;
-      rejectWord("drag", x < 0 ? -1 : 1);
-      return;
-    }
-
-    clearDragStyles();
-  }
-
-  function handleWordClick() {
-    if (ignoreNextClick.current) {
-      ignoreNextClick.current = false;
-      return;
-    }
-    rejectWord("tap", step % 2 === 0 ? 1 : -1);
-  }
-
-  function cancelDrag() {
-    dragStart.current = null;
-    setDragging(false);
-    clearDragStyles();
-  }
-
-  function jumpToQuestion() {
-    trackJumpToQuestion(step);
-    setDragging(false);
-    scrollToChapterProgress(
-      revisions.length - 1,
-      isCompactViewport() ? MOBILE_CURVE.truthRest : DESKTOP_CURVE.truthRest,
-    );
-  }
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <main
-      ref={fieldRef}
-      className={`mind phase-${phase} step-${step} scroll-${scrollDirection}`}
-      onPointerMove={updatePointer}
-      style={
-        {
-          "--story-progress": "0",
-          "--local-progress": "0",
-          "--rewrite": "0",
-          "--tension": "0",
-          "--chapter-count": revisions.length,
-        } as CSSProperties
-      }
-    >
-      <a className="skip-link" href="#active-thought">
-        Skip to the active thought
+    <div className="site">
+      <a className="skip-link" href="#main-content">
+        Skip to content
       </a>
 
-      <p className="sr-only" aria-live="polite" aria-atomic="true">
-        {statusAnnouncement}
-      </p>
-
       <div className="paper-grain" aria-hidden="true" />
-      <div className="registration registration-one" aria-hidden="true">+</div>
-      <div className="registration registration-two" aria-hidden="true">+</div>
-      <div className="proof-cursor" aria-hidden="true" />
-
-      <header className="mind-header">
-        <a className="mind-wordmark" href="#active-thought" translate="no">
-          ALT—TXT
-        </a>
-        <span className="mind-status" aria-hidden="true">
-          <i /> reviewing assumption {progress}
-        </span>
-        <button
-          className="question-shortcut"
-          type="button"
-          onClick={jumpToQuestion}
-          aria-label="Skip to the final question, revision 6 of 6"
-        >
-          <span className="question-shortcut-label">
-            <span className="question-shortcut-long">Bring us a hard thing</span>
-            <span className="question-shortcut-short">Question</span>
-          </span>
-          <span aria-hidden="true">↗</span>
-        </button>
-      </header>
-
-      <aside
-        className={`discard-margin ${discarded.length === 0 ? "is-empty" : ""}`}
-        aria-label="Assumptions removed from the work"
-        aria-hidden={discarded.length === 0 ? true : undefined}
-      >
-        <p id="discard-heading">Removed from the work</p>
-        <div className="discard-pile" aria-labelledby="discard-heading">
-          {discarded.length === 0 ? (
-            <span className="empty-pile">No assumptions removed yet</span>
-          ) : (
-            <ul className="discard-list">
-              {discarded.map((item) => (
-                <li
-                  className="discarded-word"
-                  key={`${item.step}-${item.word}`}
-                >
-                  <del>{item.word}</del>
-                  <small>{item.residue}</small>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </aside>
-
-      <div ref={flowRef} className="revision-flow scroll-story">
-        <div className="revision-stage" id="active-thought">
-          <div className="revision-coordinate" aria-hidden="true">
-            <span>{progress}</span>
-          </div>
-
-          <div className="rewrite-stack" key={step}>
-            <div
-              className="assumption-copy"
-              aria-hidden={phase === "truth"}
-              inert={phase === "truth" ? true : undefined}
-            >
-              <p className="editor-note" id="editor-note">
-                {revision.annotation}
-              </p>
-              <h1 className="sr-only" id="active-heading">
-                {phase === "truth"
-                  ? revision.truth
-                  : `${revision.prefix}${revision.wrong}${revision.suffix}`}
-              </h1>
-              <div className="assumption-heading">
-                <span aria-hidden="true">{revision.prefix}</span>
-                <button
-                  ref={wrongWordRef}
-                  className={`wrong-word ${dragging ? "is-dragging" : ""}`}
-                  type="button"
-                  data-testid="wrong-word"
-                  disabled={phase === "truth"}
-                  tabIndex={phase === "truth" ? -1 : 0}
-                  aria-label={`Remove the word “${revision.wrong}” and reveal the correction`}
-                  aria-describedby="editor-note interaction-instruction"
-                  onPointerDown={handleWordPointerDown}
-                  onPointerMove={handleWordPointerMove}
-                  onPointerUp={handleWordPointerUp}
-                  onPointerCancel={cancelDrag}
-                  onClick={handleWordClick}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") cancelDrag();
-                  }}
-                >
-                  <span className="wrong-word-text">{revision.wrong}</span>
-                  <span className="wrong-stroke" aria-hidden="true" />
-                  <i aria-hidden="true">revise</i>
-                </button>
-                <span aria-hidden="true">{revision.suffix}</span>
-              </div>
-              <span className="sr-only" id="interaction-instruction">
-                Activate the marked word, or keep scrolling, to rewrite this assumption.
-              </span>
-            </div>
-
-            <div
-              className="truth-copy"
-              aria-hidden={phase !== "truth"}
-              inert={phase !== "truth" ? true : undefined}
-            >
-              <p className="correction-mark">{revision.proof}</p>
-              <p className="truth-heading" aria-hidden="true">
-                {revision.truth}
-              </p>
-              <p className="earned-evidence">{revision.evidence}</p>
-
-              {revision.kind === "swarm" && (
-                <ul className="swarm-proof" aria-label="Specialized agent capabilities">
-                  <li>research synthesis</li>
-                  <li>finance</li>
-                  <li>operations</li>
-                  <li>engineering</li>
-                  <li>pattern finding</li>
-                </ul>
-              )}
-
-              {revision.kind === "artifacts" && (
-                <ul className="project-models" aria-label="Lab projects">
-                  {(Object.keys(artifacts) as ArtifactKey[]).map((key) => {
-                    const project = artifacts[key];
-                    return (
-                      <li key={key}>
-                        <button
-                          type="button"
-                          className="project-model"
-                          onClick={() => setArtifact(key)}
-                          aria-label={`Open ${project.name} project details`}
-                        >
-                          <span className="project-model-index" aria-hidden="true">
-                            {project.index}
-                          </span>
-                          <span className="project-model-body">
-                            <span className="project-model-topline">
-                              <strong>{project.name}</strong>
-                              <em>{project.status}</em>
-                            </span>
-                            <span className="project-model-role">{project.role}</span>
-                            <span className="project-model-host">{project.host}</span>
-                          </span>
-                          <span className="project-model-action" aria-hidden="true">
-                            Open
-                            <span>↗</span>
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-
-              {revision.kind === "outcome" && (
-                <div className="outcome-proof" aria-label="Outcome measures">
-                  <span>hours returned</span>
-                  <span>decisions improved</span>
-                  <span>margin created</span>
-                  <strong>Shipping is not proof. Change is.</strong>
-                </div>
-              )}
-
-              {revision.kind === "invitation" ? (
-                <div className="problem-trace">
-                  <label htmlFor="unresolved-problem">
-                    The part of our business that feels harder than it should is…
-                  </label>
-                  <textarea
-                    id="unresolved-problem"
-                    name="unresolved-problem"
-                    autoComplete="off"
-                    spellCheck
-                    rows={3}
-                    value={problem}
-                    onChange={(event) => setProblem(event.target.value)}
-                    placeholder="The handoff between sales and operations keeps…"
-                    tabIndex={phase === "truth" ? 0 : -1}
-                  />
-                  <div>
-                    <small id="problem-hint">Bring the messy version. 2 sentences is enough.</small>
-                    <a
-                      href={mailto}
-                      tabIndex={phase === "truth" ? 0 : -1}
-                      aria-describedby="problem-hint"
-                      onClick={() => trackContactIntent(problem.trim().length > 0)}
-                    >
-                      Send the unresolved version <span aria-hidden="true">↗</span>
-                    </a>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
+      <div className="registration registration-one" aria-hidden="true">
+        +
+      </div>
+      <div className="registration registration-two" aria-hidden="true">
+        +
       </div>
 
-      <nav aria-label="Revision chapters">
-        <ol className="revision-history">
-          {revisions.map((item, index) => {
-            const isComplete = index < step || (index === step && phase === "truth");
-            const isCurrent = index === step;
-            return (
-              <li
-                key={item.wrong}
-                aria-current={isCurrent ? "step" : undefined}
-                className={`${isComplete ? "is-complete" : ""} ${isCurrent ? "is-current" : ""}`}
+      <header
+        className={`site-header ${showHeader ? "is-visible" : ""}`}
+        aria-hidden={!showHeader}
+        inert={showHeader ? undefined : true}
+      >
+        <a className="site-wordmark" href="#hero" translate="no">
+          ALT—TXT
+        </a>
+        <nav className="site-nav" aria-label="Primary">
+          <a href="#manifesto">Manifesto</a>
+          <a href="#experiments">Experiments</a>
+        </nav>
+        <a
+          className="header-cta"
+          href="#question"
+          onClick={() => trackCtaClicked("header")}
+        >
+          Bring us a hard thing <span aria-hidden="true">↗</span>
+        </a>
+      </header>
+
+      <main id="main-content" tabIndex={-1}>
+        <section ref={heroRef} className="hero" id="hero" aria-labelledby="hero-brand">
+          <p className="hero-brand" id="hero-brand" translate="no">
+            ALT—TXT
+          </p>
+          <div className="hero-copy">
+            <p className="hero-premise">
+              <del>We sell AI.</del>
+            </p>
+            <h1 className="hero-title">We sell better ways of working.</h1>
+            <p className="hero-support">
+              We redesign the decisions, handoffs, and repetitive work that slow a company
+              down. Then we use AI where it earns its place.
+            </p>
+            <div className="hero-actions">
+              <a
+                className="button-primary"
+                href="#question"
+                onClick={() => trackCtaClicked("hero_primary")}
               >
-                <button
-                  type="button"
-                  onClick={() => scrollToChapterProgress(index, 0.08)}
-                  aria-label={`Go to assumption ${index + 1}: ${item.wrong}${
-                    isComplete ? ", corrected" : ""
-                  }${isCurrent ? ", current" : ""}`}
-                >
-                  <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                </button>
+                Bring us a hard thing
+              </a>
+              <a
+                className="button-secondary"
+                href="#manifesto"
+                onClick={() => trackCtaClicked("hero_secondary")}
+              >
+                Read the manifesto
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section
+        className="section manifesto"
+        id="manifesto"
+        aria-labelledby="manifesto-title"
+      >
+          <span className="manifesto-mark" aria-hidden="true">
+            REVISE
+          </span>
+          <div className="section-intro" data-reveal>
+            <p className="section-kicker">A working manifesto</p>
+            <h2 id="manifesto-title">Question the assumption. Keep what matters.</h2>
+            <p className="section-support">
+              Most AI projects start with an answer already chosen. We step back, find the real
+              problem, then design the right system.
+            </p>
+          </div>
+
+          <ol className="principle-list">
+            {principles.map((item) => (
+              <li key={item.index} data-reveal>
+                <span className="principle-index" aria-hidden="true">
+                  {item.index}
+                </span>
+                <p className="principle-assumption">
+                  <del>{item.assumption}</del>
+                  <span className="principle-arrow" aria-hidden="true">
+                    →
+                  </span>
+                </p>
+                <div className="principle-revision">
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </div>
               </li>
-            );
-          })}
-        </ol>
-      </nav>
+            ))}
+          </ol>
+        </section>
+
+        <section
+          className="section experiments"
+          id="experiments"
+          aria-labelledby="experiments-title"
+        >
+          <div className="section-intro" data-reveal>
+            <p className="section-kicker">Live experiments</p>
+            <h2 id="experiments-title">What the work taught us.</h2>
+            <p className="section-support">
+              Every experiment should leave the next decision sharper.
+            </p>
+          </div>
+
+          <ul className="project-list" aria-label="Live experiments">
+            {(Object.keys(artifacts) as ArtifactKey[]).map((key) => {
+              const project = artifacts[key];
+              return (
+                <li key={key} data-reveal>
+                  <button
+                    type="button"
+                    className="project-row"
+                    onClick={() => setArtifact(key)}
+                    aria-label={`Read the ${project.name} experiment trace`}
+                  >
+                    <span className="project-index" aria-hidden="true">
+                      {project.index}
+                    </span>
+                    <span className="project-body">
+                      <strong className="project-finding">{project.finding}</strong>
+                      <span className="project-meta">
+                        <strong>{project.name}</strong>
+                        <em>{project.status}</em>
+                      </span>
+                      <span className="project-question">{project.question}</span>
+                    </span>
+                    <span className="project-action" aria-hidden="true">
+                      Read the trace <span>↗</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <section className="section question" id="question" aria-labelledby="question-title">
+          <div className="section-intro" data-reveal>
+            <p className="section-kicker">One unresolved thing / 05</p>
+            <h2 id="question-title">Bring us the question before it becomes a brief.</h2>
+            <p className="section-support">
+              A constraint, a broken handoff, a decision that keeps repeating—messy is useful.
+            </p>
+          </div>
+
+          <div className="problem-trace" data-reveal>
+            <label htmlFor="unresolved-problem">
+              The part of our business that feels harder than it should is…
+            </label>
+            <textarea
+              id="unresolved-problem"
+              name="unresolved-problem"
+              autoComplete="off"
+              spellCheck
+              rows={3}
+              value={problem}
+              onChange={(event) => setProblem(event.target.value)}
+              placeholder="The handoff between sales and operations keeps…"
+            />
+            <div className="problem-actions">
+              <small id="problem-hint">No deck. No polished brief. 2 sentences are enough.</small>
+              <a
+                href={mailto}
+                aria-describedby="problem-hint"
+                onClick={() => trackContactIntent(problem.trim().length > 0)}
+              >
+                Open email draft <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="site-footer">
+        <p translate="no">ALT—TXT</p>
+        <a href="mailto:hello@alt-txt.com">hello@alt-txt.com</a>
+      </footer>
 
       <dialog
         ref={dialogRef}
@@ -699,7 +337,7 @@ export default function Home() {
         {artifact && (
           <div className="artifact-sheet">
             <div className="artifact-sheet-head">
-              <span>Lab project / {artifacts[artifact].index}</span>
+              <span>Experiment / {artifacts[artifact].index}</span>
               <button
                 type="button"
                 onClick={() => dialogRef.current?.close()}
@@ -719,15 +357,15 @@ export default function Home() {
 
             <dl className="artifact-facts">
               <div>
-                <dt>Question</dt>
+                <dt>The question</dt>
                 <dd>{artifacts[artifact].question}</dd>
               </div>
               <div>
-                <dt>Experiment</dt>
+                <dt>What we tried</dt>
                 <dd>{artifacts[artifact].experiment}</dd>
               </div>
               <div>
-                <dt>Trace left behind</dt>
+                <dt>What we learned</dt>
                 <dd>{artifacts[artifact].finding}</dd>
               </div>
             </dl>
@@ -749,12 +387,12 @@ export default function Home() {
                 className="artifact-dismiss"
                 onClick={() => dialogRef.current?.close()}
               >
-                Stay with the work
+                Back to the work
               </button>
             </div>
           </div>
         )}
       </dialog>
-    </main>
+    </div>
   );
 }

@@ -1,26 +1,21 @@
-# Alt-TXT — The Site That Changes Its Mind
+# Alt-TXT — Better Ways of Working
 
-Alt-TXT’s digital presence behaves like a living editorial manuscript rather
-than a conventional company homepage. Visitors remove bad assumptions, watch
-the language rebuild itself, and discover the company’s philosophy through
-action.
+Alt-TXT’s digital presence behaves like an editorial proof sheet rather than a
+conventional consultancy homepage. It removes the premature AI premise, makes
+the working manifesto visible, and presents live projects as experiments with
+questions and findings—not portfolio theatre.
 
 ## Experience
 
-- Wrong words are tactile controls that can be dragged, tapped, or activated by
-  keyboard.
-- Each correction earns one layer of the Alt-TXT manifesto instead of
-  presenting everything upfront.
-- Rejected assumptions accumulate visibly in the margin as a history of
-  thought.
-- Resolved ideas remain in a scrollable thought trail with progressive
-  view-timeline animation.
-- Krekib and CeJour appear as evidence sheets inside the revision journey—not
-  portfolio cards.
-- The closing problem prompt turns the visitor’s own unresolved work into the
-  final trace.
-- The active composition reflows for mobile and honors reduced-motion
-  preferences.
+- The opening visibly revises “We sell AI” into “We sell better ways of
+  working.”
+- Four assumption-to-revision pairs turn the manifesto into the page’s main
+  structure.
+- Krekib and CeJour appear as experiment traces led by what each one taught us.
+- The closing prompt turns a visitor’s unresolved work into a prefilled email
+  draft.
+- The editorial composition reflows for mobile, remains keyboard accessible,
+  and honors reduced-motion preferences.
 
 ## Local development
 

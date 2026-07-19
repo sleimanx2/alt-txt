@@ -9,8 +9,9 @@ const fallbackOrigin = "https://alt-txt.com";
 const siteName = "Alt-TXT";
 const defaultTitle = "Alt-TXT — Better ways of working";
 const defaultDescription =
-  "Alt-TXT is an intelligence lab that removes bad assumptions, finds leverage, and redesigns how companies work with AI and specialized agents.";
-const ogDescription = "We don’t sell AI. We sell better ways of working.";
+  "Alt-TXT is an intelligence lab that redesigns how companies work — finding leverage, protecting judgment, and building systems where AI is the tool, not the pitch.";
+const ogDescription =
+  "We sell better ways of working. AI is today’s best tool—not the pitch.";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -121,7 +122,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: socialImage,
           width: 1200,
           height: 630,
-          alt: "We sell AI, corrected to: We sell better ways of working.",
+          alt: "Alt-TXT proof sheet: We sell better ways of working, not AI.",
           type: "image/png",
         },
       ],
@@ -133,7 +134,7 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [
         {
           url: socialImage,
-          alt: "We sell AI, corrected to: We sell better ways of working.",
+          alt: "Alt-TXT proof sheet: We sell better ways of working, not AI.",
         },
       ],
     },
