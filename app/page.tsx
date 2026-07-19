@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fragment,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -115,22 +114,30 @@ const artifacts = {
 } as const;
 
 type ArtifactKey = keyof typeof artifacts;
-type Phase = "assumption" | "truth";
+type Phase = "assumption" | "correcting" | "truth";
 type DiscardedWord = { word: string; residue: string; step: number };
 
-const BEATS_PER_CHAPTER = 2;
-const TOTAL_BEATS = revisions.length * BEATS_PER_CHAPTER;
+const DESKTOP_CURVE = { start: 0.2, end: 0.62, truthRest: 0.72 };
+const MOBILE_CURVE = { start: 0.1, end: 0.48, truthRest: 0.64 };
 
 function clamp(value: number, min = 0, max = 1) {
   return Math.min(max, Math.max(min, value));
+}
+
+function rewriteFromLocal(local: number, start: number, end: number) {
+  const linear = clamp((local - start) / (end - start));
+  // Smoothstep so the correction accelerates through the middle of the scroll.
+  return linear * linear * (3 - 2 * linear);
 }
 
 function isCompactViewport() {
   return window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
 }
 
-function beatIndexFor(step: number, phase: "assumption" | "truth") {
-  return clamp(step, 0, revisions.length - 1) * BEATS_PER_CHAPTER + (phase === "truth" ? 1 : 0);
+function phaseFromRewrite(rewrite: number): Phase {
+  if (rewrite < 0.18) return "assumption";
+  if (rewrite < 0.82) return "correcting";
+  return "truth";
 }
 
 export default function Home() {
@@ -151,7 +158,11 @@ export default function Home() {
   const stepRef = useRef(0);
   const phaseRef = useRef<Phase>("assumption");
   const rewriteRef = useRef(0);
-  const beatRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const localRef = useRef(0);
+  const scrollRaf = useRef(0);
+  const settleTimer = useRef(0);
+  const settling = useRef(false);
+  const curveRef = useRef({ ...DESKTOP_CURVE, compact: false });
   const trackedAssumptions = useRef(new Set<number>());
   const trackedTruths = useRef(new Set<number>());
 
@@ -166,7 +177,9 @@ export default function Home() {
   const statusAnnouncement =
     phase === "truth"
       ? `Revision ${progress} corrected. ${revision.truth} ${revision.evidence}`
-      : `Revision ${progress}. ${revision.prefix}${revision.wrong}${revision.suffix} ${revision.annotation}`;
+      : phase === "correcting"
+        ? `Revision ${progress} is being rewritten.`
+        : `Revision ${progress}. ${revision.prefix}${revision.wrong}${revision.suffix} ${revision.annotation}`;
 
   const mailto = useMemo(() => {
     const unresolved = problem.trim() || "The part of our business that feels harder than it should is…";
@@ -207,22 +220,39 @@ export default function Home() {
     const flow = flowRef.current;
     if (!field || !flow) return;
 
-    let frame = 0;
-    let activeBeat = -1;
+    const readChapter = () => {
+      const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
+      const scrolled = clamp(-flow.getBoundingClientRect().top / total);
+      const chapterFloat = scrolled * revisions.length;
+      const nextStep = Math.min(Math.floor(chapterFloat), revisions.length - 1);
+      const local = clamp(chapterFloat - nextStep);
+      return { total, scrolled, nextStep, local };
+    };
 
-    const applyBeat = (beatIndex: number) => {
-      if (beatIndex === activeBeat) return;
-      activeBeat = beatIndex;
+    const syncCurve = () => {
+      const compact = isCompactViewport();
+      curveRef.current = compact
+        ? { ...MOBILE_CURVE, compact: true }
+        : { ...DESKTOP_CURVE, compact: false };
+    };
 
-      const nextStep = Math.min(Math.floor(beatIndex / BEATS_PER_CHAPTER), revisions.length - 1);
-      const nextPhase: Phase = beatIndex % BEATS_PER_CHAPTER === 0 ? "assumption" : "truth";
-      const rewrite = nextPhase === "truth" ? 1 : 0;
-      const storyProgress = TOTAL_BEATS <= 1 ? 0 : beatIndex / (TOTAL_BEATS - 1);
+    const applyProgress = () => {
+      scrollRaf.current = 0;
+      syncCurve();
 
-      field.style.setProperty("--story-progress", storyProgress.toFixed(4));
-      field.style.setProperty("--local-progress", rewrite.toFixed(4));
+      const { start, end } = curveRef.current;
+      const { scrolled, nextStep, local } = readChapter();
+      const rewrite = reduceMotion.current
+        ? local < 0.5
+          ? 0
+          : 1
+        : rewriteFromLocal(local, start, end);
+      const nextPhase = phaseFromRewrite(rewrite);
+
+      field.style.setProperty("--story-progress", scrolled.toFixed(4));
+      field.style.setProperty("--local-progress", local.toFixed(4));
       field.style.setProperty("--rewrite", rewrite.toFixed(4));
-      field.style.setProperty("--tension", rewrite.toFixed(4));
+      field.style.setProperty("--tension", clamp(local / start).toFixed(4));
       field.dataset.phase = nextPhase;
 
       if (nextStep !== stepRef.current) {
@@ -236,41 +266,70 @@ export default function Home() {
         setPhase(nextPhase);
       }
 
+      localRef.current = local;
       rewriteRef.current = rewrite;
     };
 
-    const syncFromScroll = () => {
-      frame = 0;
-      const beats = [...flow.querySelectorAll<HTMLDivElement>(".snap-beat")];
-      if (beats.length === 0) return;
+    const scrollToLocal = (targetStep: number, localProgress: number, smooth: boolean) => {
+      const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
+      const chapterSpan = total / revisions.length;
+      const top =
+        flow.offsetTop +
+        chapterSpan * (clamp(targetStep, 0, revisions.length - 1) + clamp(localProgress));
 
-      let bestIndex = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
-
-      beats.forEach((beat, index) => {
-        const distance = Math.abs(beat.getBoundingClientRect().top);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
+      settling.current = true;
+      window.scrollTo({
+        top,
+        behavior: smooth && !reduceMotion.current ? "smooth" : "auto",
       });
+      window.setTimeout(() => {
+        settling.current = false;
+      }, smooth ? 420 : 80);
+    };
 
-      applyBeat(bestIndex);
+    const settleMobileScroll = () => {
+      if (settling.current || reduceMotion.current || !curveRef.current.compact) return;
+
+      const { start, end, truthRest } = curveRef.current;
+      const { nextStep, local } = readChapter();
+
+      // Only correct floaty mid-rewrite stops — leave settled assumption/truth alone.
+      if (local > start && local < end) {
+        scrollToLocal(nextStep, truthRest, true);
+        return;
+      }
+
+      // If a flick lands just short of the next chapter, park in truth rest.
+      if (local > end && local < 0.78 && Math.abs(local - truthRest) > 0.06) {
+        scrollToLocal(nextStep, truthRest, true);
+      }
     };
 
     const onScroll = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(syncFromScroll);
+      if (scrollRaf.current) return;
+      scrollRaf.current = window.requestAnimationFrame(applyProgress);
+
+      if (!isCompactViewport()) return;
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(settleMobileScroll, 120);
     };
 
-    syncFromScroll();
+    const onScrollEnd = () => {
+      window.clearTimeout(settleTimer.current);
+      settleMobileScroll();
+    };
+
+    applyProgress();
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scrollend", onScrollEnd, { passive: true });
     window.addEventListener("resize", onScroll);
 
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scrollend", onScrollEnd);
       window.removeEventListener("resize", onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer.current);
+      if (scrollRaf.current) window.cancelAnimationFrame(scrollRaf.current);
     };
   }, []);
 
@@ -288,13 +347,19 @@ export default function Home() {
     word.style.setProperty("--drag-y", "0px");
   }
 
-  function scrollToBeat(targetStep: number, targetPhase: "assumption" | "truth") {
-    const beat = beatRefs.current[beatIndexFor(targetStep, targetPhase)];
-    if (!beat) return;
+  function scrollToChapterProgress(targetStep: number, localProgress: number) {
+    const flow = flowRef.current;
+    if (!flow) return;
 
-    beat.scrollIntoView({
+    const total = Math.max(flow.offsetHeight - window.innerHeight, 1);
+    const chapterSpan = total / revisions.length;
+    const top =
+      flow.offsetTop +
+      chapterSpan * (clamp(targetStep, 0, revisions.length - 1) + clamp(localProgress));
+
+    window.scrollTo({
+      top,
       behavior: reduceMotion.current ? "auto" : "smooth",
-      block: "start",
     });
   }
 
@@ -310,7 +375,10 @@ export default function Home() {
 
     trackAssumptionRejected(step, revision.wrong, method);
     setDragging(false);
-    scrollToBeat(step, "truth");
+    scrollToChapterProgress(
+      step,
+      compact ? MOBILE_CURVE.truthRest : DESKTOP_CURVE.truthRest,
+    );
   }
 
   function handleWordPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -366,7 +434,10 @@ export default function Home() {
   function jumpToQuestion() {
     trackJumpToQuestion(step);
     setDragging(false);
-    scrollToBeat(revisions.length - 1, "truth");
+    scrollToChapterProgress(
+      revisions.length - 1,
+      isCompactViewport() ? MOBILE_CURVE.truthRest : DESKTOP_CURVE.truthRest,
+    );
   }
 
   return (
@@ -590,29 +661,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        <div className="snap-track" aria-hidden="true">
-          {revisions.map((item, stepIndex) => (
-            <Fragment key={item.wrong}>
-              <div
-                className="snap-beat"
-                ref={(element) => {
-                  beatRefs.current[beatIndexFor(stepIndex, "assumption")] = element;
-                }}
-                data-step={stepIndex}
-                data-phase="assumption"
-              />
-              <div
-                className="snap-beat"
-                ref={(element) => {
-                  beatRefs.current[beatIndexFor(stepIndex, "truth")] = element;
-                }}
-                data-step={stepIndex}
-                data-phase="truth"
-              />
-            </Fragment>
-          ))}
-        </div>
       </div>
 
       <nav aria-label="Revision chapters">
@@ -628,7 +676,7 @@ export default function Home() {
               >
                 <button
                   type="button"
-                  onClick={() => scrollToBeat(index, "assumption")}
+                  onClick={() => scrollToChapterProgress(index, 0.08)}
                   aria-label={`Go to assumption ${index + 1}: ${item.wrong}${
                     isComplete ? ", corrected" : ""
                   }${isCurrent ? ", current" : ""}`}
