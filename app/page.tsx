@@ -177,7 +177,7 @@ export default function Home() {
         inert={showHeader ? undefined : true}
       >
         <a className="site-wordmark" href="#hero" translate="no">
-          ALT—TXT
+          ALT-TXT
         </a>
         <nav className="site-nav" aria-label="Primary">
           <a href="#manifesto">Manifesto</a>
@@ -195,7 +195,7 @@ export default function Home() {
       <main id="main-content" tabIndex={-1}>
         <section ref={heroRef} className="hero" id="hero" aria-labelledby="hero-brand">
           <p className="hero-brand" id="hero-brand" translate="no">
-            ALT—TXT
+            ALT-TXT
           </p>
           <div className="hero-copy">
             <p className="hero-premise">
@@ -448,7 +448,7 @@ export default function Home() {
       </main>
 
       <footer className="site-footer">
-        <p translate="no">ALT—TXT</p>
+        <p translate="no">ALT-TXT</p>
         <a href="mailto:hello@alt-txt.com">hello@alt-txt.com</a>
       </footer>
 

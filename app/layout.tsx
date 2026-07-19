@@ -17,7 +17,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#e8e6e1",
+  themeColor: "#d8dbd4",
   colorScheme: "light",
 };
 
@@ -149,7 +149,7 @@ function JsonLd({ origin }: { origin: string }) {
         "@type": "Organization",
         "@id": `${fallbackOrigin}/#organization`,
         name: siteName,
-        alternateName: "ALT—TXT",
+        alternateName: "ALT-TXT",
         url: fallbackOrigin,
         email: "hello@alt-txt.com",
         description: defaultDescription,
